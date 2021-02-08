@@ -1,19 +1,54 @@
 #!/usr/bin/env python3
+'''
+This is a git hook migrated from hg.
+
+Reference:
+https://confluence.ccdc.cam.ac.uk/pages/viewpage.action?spaceKey=GIT&title=Hooks
+
+'''
 
 from collections import defaultdict
 import os
+from pathlib import Path
 import platform
 import re
 import subprocess
 
 
-
+# Filename must not contain these characters
 ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
+# These names are reserved on Windows
 DEVICE_NAMES = frozenset([
     'con', 'prn', 'aux', 'nul',
     'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
     'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
     ])
+# Check file content if it has these extensions
+CHECKED_EXTS = [
+        '.bat',
+        '.c',
+        '.cgi',
+        '.cmake',
+        '.cpp',
+        '.cs',
+        '.css',
+        '.F',
+        '.f',
+        '.h',
+        '.inc',
+        '.inl',
+        '.java',
+        '.js',
+        '.php',
+        '.pri',
+        '.pro',
+        '.ps1',
+        '.py',
+        '.sed',
+        '.sh',
+        '.svc',
+        '.tpl',
+        ]
 
 
 def _get_output(command, cwd='.'):
@@ -52,12 +87,19 @@ def add_file_to_index(filename):
 
 
 def get_commit_files():
-    '''List of files in current commit'''
+    '''Get files in current commit
+
+    Return a dictionary:
+        'M': <list of modified files>
+        'A': <list of new files>
+
+    '''
     output = _get_output('git diff-index HEAD')
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
-        result[parts[-2]].append(parts[-1])
+        if parts[-2] in ['M', 'A']:
+            result[parts[-2]].append(parts[-1])
     return result
 
 
@@ -76,7 +118,7 @@ def get_modified_lines(modified_file):
         else:
             lines.append(start)
     return lines
-get_modified_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+(\d+)(,(\d+))?\s@@.+')
+get_modified_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
 
@@ -126,16 +168,27 @@ def remove_trailing_white_space(files, new_files=False):
 
 
 def check_filenames(files):
-    '''Check file path and name meet requirement.'''
-    if platform.system() != 'Windows':
-        manifest_lower2case = {}
-        for f in get_branch_files():
-            flower = f.lower()
-            if flower in manifest_lower2case:
-                print('   Case-folding collision between "' + f + '" and "' + manifest_lower2case[flower] + '"\n')
-                return 1
-            else:
-                manifest_lower2case[flower] = f
+    '''Check file path and name meet requirement.
+
+    For file path, specifically it's all ASCII and roughly within max length
+    on Windows.
+
+    For file name, check for case conflict, does not include illegal
+    characters, reserved names on Windows, and does not end in a period or
+    whitespace.
+
+    '''
+
+    # TODO: work on this and test on windows
+#    if platform.system() != 'Windows':
+#        manifest_lower2case = {}
+#        for f in get_branch_files():
+#            flower = f.lower()
+#            if flower in manifest_lower2case:
+#                print('   Case-folding collision between "' + f + '" and "' + manifest_lower2case[flower] + '"\n')
+#                return 1
+#            else:
+#                manifest_lower2case[flower] = f
 
     # We permit repository paths to be up to 50 characters long excluding the
     # final slash character.
@@ -148,9 +201,8 @@ def check_filenames(files):
     # Windows filename rules are here:
     # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
     # This checks for those cases and stops the commit if found.
-    print(files)
     for filepath in files:
-        print(filepath)
+        print(f'  Checking file {filepath}')
         dir_file = os.path.split(filepath)
         filename = dir_file[1]
         for ch in filename:
@@ -163,6 +215,7 @@ def check_filenames(files):
             return 1
 
         if filepath[-1] == '.' or filepath[-1].isspace():
+            print(filepath)
             print(f'   Illegal file name "{filepath}" - '
                   'names are not permitted to end with "." or whitespace.')
             return 1
@@ -183,9 +236,17 @@ def check_filenames(files):
 
 
 def check_username():
+    '''Check username of person making the commit
+
+    In git, this is the *author* of the commit.
+
+    Check for reasonable username (ie. made up of alphabets), and that it's
+    not a build service account or root account.
+
+    '''
+
     username = get_user()
-    print(username)
-    if re.search(r'root|buildman|[^a-zA-Z ]', username) != None:
+    if re.search(r'root|buildman|[^a-zA-Z ]', username) is not None:
         message = 'Bad username "' + username + '"\n'
         if username == 'buildman' or username == 'root':
             message += 'buildman or root user should not be used'
@@ -195,6 +256,85 @@ def check_username():
         return 1
 
     return 0
+
+
+def check_file_content(filename, data):
+    if 'do not commit' in data.lower():
+        print(f'   Found DO NOT COMMIT in "{filename}". '
+              'Remove file from index.')
+        return 1
+
+    if '\t' in data:
+        print(f'   Found tab characters in "{filename}". Replace with spaces.')
+        return 1
+
+    # For file types that need a terminating newline
+    if any(map(lambda ext: filename.endswith(ext), ['.c', '.cpp', '.h', '.inl'])):
+        if not data.endswith('\n'):
+            print(f'   Missing terminating newline in {filename}')
+            return 1
+
+    # TODO: Do we need to check eol?
+
+    # Detect common C++ errors that the build-checkers have encountered.
+    if any(map(lambda ext: filename.endswith(ext), ['.cpp', '.h', '.inl'])):
+        num = 0
+        for line in data.splitlines():
+            num += 1
+            if check_file_content.cpp_include_backslash_pattern.search(line):
+                print(f'   {filename}:{num} - Backslash in #include')
+                return 1
+            if check_file_content.cpp_throw_std_exception_pattern.search(line):
+                print(f'   {filename}:{num} - std::exception thrown')
+                return 1
+
+    return 0
+check_file_content.cpp_include_backslash_pattern = re.compile('^\\s*\\#\\s*include\\s*[\\"\\<][^\\"\\>]*\\\\', re.MULTILINE)
+check_file_content.cpp_throw_std_exception_pattern = re.compile(r'\bthrow\s+(std\s*::\s*)?exception\s*\(')
+
+
+def check_content(files):
+    '''Check content of files.
+
+    This only applies to files meeting the conditions:
+        1. Filename has certain extensions
+        2. The content can be read
+        3. It's a text file
+
+    We check that:
+        1. It does non contain "DO NOT COMMIT" (case insensitive)
+        2. It does not contain tab
+        3. For C / C++ source files:
+            a. It has no missing newline at the end
+            b. It has no backslash in #include
+            c. It does not throw std::exception
+
+    '''
+
+    retval = 0
+    for filename in files:
+        # Skip file if extension is not in the checked list
+        if not any([filename.endswith(checked_ext)
+                    for checked_ext in CHECKED_EXTS]):
+            continue
+
+        # TODO: implement ignored_files / ignored_exts / ignored_patterns
+
+        try:
+            data = Path(filename).read_text()
+        except Exception as exc:
+            print(exc)
+            continue
+
+        # Skip binary file
+        if '\0' in data:
+            continue
+
+        print(f'  Checking file {filename}')
+        retval += check_file_content(filename, data)
+
+    return retval
+
 
 def main():
     print(f'Running pre-commit hook {__file__}')
@@ -206,11 +346,14 @@ def main():
     remove_trailing_white_space(files['M'])
     remove_trailing_white_space(files['A'], new_files=True)
 
-    print(' Check filenames ...')
-    retval += check_filenames([el for li in files.values() for el in li])
-
     print(' Check username ...')
     retval += check_username()
+
+    print(' Check filenames ...')
+    retval += check_filenames(files['M'] + files['A'])
+
+    print(' Check content ...')
+    retval += check_content(files['M'] + files['A'])
 
     print('Done running pre-commit hook')
     return retval
@@ -218,3 +361,4 @@ def main():
 
 if __name__ == '__main__':
     exit(main())
+
