@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
 
 from collections import defaultdict
+import os
+import platform
 import re
 import subprocess
+
+
+
+ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
+DEVICE_NAMES = frozenset([
+    'con', 'prn', 'aux', 'nul',
+    'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+    'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+    ])
 
 
 def _get_output(command, cwd='.'):
@@ -16,10 +27,20 @@ def _get_output(command, cwd='.'):
 #        return True
 #    return False
 
+def get_branch():
+    '''Get current branch'''
+    return _get_output('git branch').split()[-1]
+
+
+def get_branch_files():
+    '''Get all files in branch'''
+    branch = get_branch()
+    return _get_output(f'git ls-tree -r {branch} --name-only').splitlines()
+
+
 def add_file_to_index(filename):
     '''Add file to current commit'''
-    output = _get_output(f'git add {filename}')
-    return output
+    return _get_output(f'git add {filename}')
 
 
 def get_commit_files():
@@ -96,19 +117,77 @@ def remove_trailing_white_space(files, new_files=False):
         trim_trailing_whitespace_in_file(filename, new_files)
 
 
+def check_filenames(files):
+    '''Check file path and name meet requirement.'''
+    if platform.system() != 'Windows':
+        manifest_lower2case = {}
+        for f in get_branch_files():
+            flower = f.lower()
+            if flower in manifest_lower2case:
+                print('   Case-folding collision between "' + f + '" and "' + manifest_lower2case[flower] + '"\n')
+                return 1
+            else:
+                manifest_lower2case[flower] = f
+
+    # We permit repository paths to be up to 50 characters long excluding the
+    # final slash character.
+    # Windows allows paths with up to 259 characters (260 including a
+    # terminating null char)
+    max_subpath_chars = 208
+
+    # It's easy to add files on Linux that will make the repository unusable
+    # on Windows.
+    # Windows filename rules are here:
+    # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
+    # This checks for those cases and stops the commit if found.
+    print(files)
+    for filepath in files:
+        print(filepath)
+        dir_file = os.path.split(filepath)
+        filename = dir_file[1]
+        for ch in filename:
+            if ch in ILLEGAL_CHARS or ord(ch) <= 31:
+                print(f'   Illegal character "{ch}" in filename "{filename}".')
+                return 1
+
+        if os.path.splitext(filename)[0].lower() in DEVICE_NAMES:
+            print(f'   Illegal filename "{filename}" - reserved on Windows.\n')
+            return 1
+
+        if filepath[-1] == '.' or filepath[-1].isspace():
+            print(f'   Illegal file name "{filepath}" - '
+                  'names are not permitted to end with "." or whitespace.')
+            return 1
+
+        try:
+            filepath.encode('ascii')
+        except UnicodeDecodeError:
+            print(f'   Illegal path "{filepath}" - '
+                  'only ASCII characters are permitted.')
+            return 1
+
+        if len(filepath) > max_subpath_chars:
+            print(f'   File path "{filepath}" is too long, it must be '
+                  f'{max_subpath_chars} characters or less.')
+            return 1
+
+    return 0
 
 
 def main():
     print(f'Running pre-commit hook {__file__}')
 
+    retval = 0
     files = get_commit_files()
 
     print(' Auto remove trailing white space ...')
     remove_trailing_white_space(files['M'])
     remove_trailing_white_space(files['A'], new_files=True)
 
+    print(' Check filenames ...')
+    retval += check_filenames([el for li in files.values() for el in li])
+
     print('Done running pre-commit hook')
-    retval = 0
     return retval
 
 
