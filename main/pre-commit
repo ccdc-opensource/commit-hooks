@@ -27,6 +27,14 @@ def _get_output(command, cwd='.'):
 #        return True
 #    return False
 
+
+def get_user():
+    '''Get user making the commit'''
+    output = _get_output('git var GIT_AUTHOR_IDENT')
+    match = re.match(r'^(.+) <', output)
+    return match.group(1)
+
+
 def get_branch():
     '''Get current branch'''
     return _get_output('git branch').split()[-1]
@@ -174,6 +182,20 @@ def check_filenames(files):
     return 0
 
 
+def check_username():
+    username = get_user()
+    print(username)
+    if re.search(r'root|buildman|[^a-zA-Z ]', username) != None:
+        message = 'Bad username "' + username + '"\n'
+        if username == 'buildman' or username == 'root':
+            message += 'buildman or root user should not be used'
+        else:
+            message += 'To set this up see https://docs.github.com/en/github/using-git/setting-your-username-in-git'
+        print(message)
+        return 1
+
+    return 0
+
 def main():
     print(f'Running pre-commit hook {__file__}')
 
@@ -186,6 +208,9 @@ def main():
 
     print(' Check filenames ...')
     retval += check_filenames([el for li in files.values() for el in li])
+
+    print(' Check username ...')
+    retval += check_username()
 
     print('Done running pre-commit hook')
     return retval
