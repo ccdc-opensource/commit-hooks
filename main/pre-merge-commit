@@ -7,10 +7,7 @@ https://confluence.ccdc.cam.ac.uk/pages/viewpage.action?spaceKey=GIT&title=Hooks
 
 '''
 
-import pre-commit
-
+import githooks
 
 if __name__ == '__main__':
-    pre-commit.main(merge=True)
-
-
+    exit(githooks.commit_hook(merge=True))
