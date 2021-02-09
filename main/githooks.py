@@ -104,11 +104,6 @@ def get_changed_lines(modified_file):
 get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
-def abort_merge():
-    '''Abort the current merge process'''
-    _ = _get_output('git merge --abort')
-
-
 def check_do_not_merge_in_file(filename, new_file=False):
     '''Check do not merge in a filename'''
     with open(filename, 'rb') as fileobj:
@@ -126,8 +121,10 @@ def check_do_not_merge_in_file(filename, new_file=False):
             print(f'Error {exc}: {line_num-1} in {filename}')
             continue
         if 'do not merge' in line.lower():
-            print(f'   Found DO NOT MERGE in "{filename}". '
-                  'Remove file from index.')
+            print(f'   Found DO NOT MERGE in "{filename}".\n'
+                  '   Run "git merge --abort" to start again, '
+                  f'or remove {filename} from index before completing the '
+                  'merge with "git commit".')
             return 1
 
     return 0
@@ -381,8 +378,6 @@ def commit_hook(merge=False):
         print(' Check do not merge ...')
         retval += check_do_not_merge(files['M'])
         retval += check_do_not_merge(files['A'], new_files=True)
-        if retval > 0:
-            abort_merge()
     else:
         print(' Check filenames ...')
         retval += check_filenames(files['M'] + files['A'])
