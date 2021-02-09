@@ -105,7 +105,7 @@ get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
 def check_do_not_merge_in_file(filename, new_file=False):
-    '''Check do not merge in a filename'''
+    '''Check for "do not merge" in a filename'''
     with open(filename, 'rb') as fileobj:
         lines = fileobj.read().decode().splitlines(True)
 
@@ -131,7 +131,16 @@ def check_do_not_merge_in_file(filename, new_file=False):
 
 
 def check_do_not_merge(files, new_files=False):
-    '''Check do not merge in files'''
+    '''Check for "do not merge" in files
+
+    This check is case insensitive.
+
+    Note that if found this will abort the merge, leaving it in a merge
+    conflict resolution state. User should either simply "git merge --abort"
+    or fix the issue (eg. by removing the offending file or part from the
+    index) before doing "git commit" to complete the merge.
+
+    '''
     retval = 0
     for filename in files:
         print(f'  Checking file {filename}')
