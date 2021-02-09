@@ -104,6 +104,11 @@ def get_changed_lines(modified_file):
 get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
+def abort_merge():
+    '''Abort the current merge process'''
+    _ = _get_output('git merge --abort')
+
+
 def check_do_not_merge_in_file(filename, new_file=False):
     '''Check do not merge in a filename'''
     with open(filename, 'rb') as fileobj:
@@ -365,11 +370,6 @@ def commit_hook(merge=False):
     retval = 0
     files = get_commit_files()
 
-    if merge:
-        print(' Check do not merge ...')
-        retval += check_do_not_merge(files['M'])
-        retval += check_do_not_merge(files['A'], new_files=True)
-
     print(' Auto remove trailing white space ...')
     remove_trailing_white_space(files['M'])
     remove_trailing_white_space(files['A'], new_files=True)
@@ -377,10 +377,17 @@ def commit_hook(merge=False):
     print(' Check username ...')
     retval += check_username()
 
-    print(' Check filenames ...')
-    retval += check_filenames(files['M'] + files['A'])
+    if merge:
+        print(' Check do not merge ...')
+        retval += check_do_not_merge(files['M'])
+        retval += check_do_not_merge(files['A'], new_files=True)
+        if retval > 0:
+            abort_merge()
+    else:
+        print(' Check filenames ...')
+        retval += check_filenames(files['M'] + files['A'])
 
-    print(' Check content ...')
-    retval += check_content(files['M'] + files['A'])
+        print(' Check content ...')
+        retval += check_content(files['M'] + files['A'])
 
     return retval
