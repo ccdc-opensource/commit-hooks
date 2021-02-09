@@ -86,14 +86,14 @@ def get_commit_files():
     return result
 
 
-def get_modified_lines(modified_file):
+def get_changed_lines(modified_file):
     '''New and modified lines in modified file in current commit'''
     output = _get_output(f'git diff-index HEAD -p --unified=0 {modified_file}')
     lines = []
     for line in output.splitlines():
         if not line.startswith('@@'):
             continue
-        match = get_modified_lines.pattern.match(line)
+        match = get_changed_lines.pattern.match(line)
         start = int(match.group(1))
         if match.group(2):
             for num in range(int(match.group(3))):
@@ -101,7 +101,7 @@ def get_modified_lines(modified_file):
         else:
             lines.append(start)
     return lines
-get_modified_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
+get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
 
@@ -120,7 +120,7 @@ def trim_trailing_whitespace_in_file(filename, new_file=False):
     if new_file:
         line_nums = range(1, len(lines)+1)
     else:
-        line_nums = get_modified_lines(filename)
+        line_nums = get_changed_lines(filename)
 
     modified_file = False
 
@@ -162,16 +162,17 @@ def check_filenames(files):
 
     '''
 
-    # TODO: work on this and test on windows
-#    if platform.system() != 'Windows':
-#        manifest_lower2case = {}
-#        for f in get_branch_files():
-#            flower = f.lower()
-#            if flower in manifest_lower2case:
-#                print('   Case-folding collision between "' + f + '" and "' + manifest_lower2case[flower] + '"\n')
-#                return 1
-#            else:
-#                manifest_lower2case[flower] = f
+    # TODO: Test on a real linux / mac machine
+    if platform.system() != 'Windows':
+        manifest_lower2case = {}
+        for f in get_branch_files():
+            flower = f.lower()
+            if flower in manifest_lower2case:
+                print(f'   Case-folding collision between "{f}" and '
+                      f'"{manifest_lower2case[flower]}"')
+                return 1
+            else:
+                manifest_lower2case[flower] = f
 
     # We permit repository paths to be up to 50 characters long excluding the
     # final slash character.
@@ -261,12 +262,13 @@ def check_file_content(filename, data):
         return 1
 
     # For file types that need a terminating newline
-    if any(map(lambda ext: filename.endswith(ext), ['.c', '.cpp', '.h', '.inl'])):
+    if any(map(lambda ext: filename.endswith(ext),
+               ['.c', '.cpp', '.h', '.inl'])):
         if not data.endswith('\n'):
             print(f'   Missing terminating newline in {filename}')
             return 1
 
-    # TODO: Do we need to check eol?
+    # NOTE: Not checking eol
 
     # Detect common C++ errors that the build-checkers have encountered.
     if any(map(lambda ext: filename.endswith(ext), ['.cpp', '.h', '.inl'])):
@@ -310,7 +312,7 @@ def check_content(files):
                     for checked_ext in CHECKED_EXTS]):
             continue
 
-        # TODO: implement ignored_files / ignored_exts / ignored_patterns
+        # NOTE: ignored_files / ignored_exts / ignored_patterns not used
 
         try:
             data = Path(filename).read_text()
@@ -353,4 +355,3 @@ def main():
 
 if __name__ == '__main__':
     exit(main())
-
