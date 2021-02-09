@@ -130,9 +130,11 @@ def check_do_not_merge_in_file(filename, new_file=False):
 
 def check_do_not_merge(files, new_files=False):
     '''Check do not merge in files'''
+    retval = 0
     for filename in files:
         print(f'  Checking file {filename}')
-        check_do_not_merge_in_file(filename, new_files)
+        retval += check_do_not_merge_in_file(filename, new_files)
+    return retval
 
 
 def trim_trailing_whitespace(string):
@@ -365,8 +367,8 @@ def commit_hook(merge=False):
 
     if merge:
         print(' Check do not merge ...')
-        check_do_not_merge(files['M'])
-        check_do_not_merge(files['A'], new_files=True)
+        retval += check_do_not_merge(files['M'])
+        retval += check_do_not_merge(files['A'], new_files=True)
 
     print(' Auto remove trailing white space ...')
     remove_trailing_white_space(files['M'])
