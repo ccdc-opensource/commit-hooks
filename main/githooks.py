@@ -12,6 +12,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+import unittest
 
 
 # Check file content if it has these extensions
@@ -77,7 +78,7 @@ def get_commit_files():
         'A': <list of new files>
 
     '''
-    output = _get_output('git diff-index HEAD')
+    output = _get_output('git diff-index HEAD --cached')
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
@@ -154,6 +155,29 @@ def trim_trailing_whitespace(string):
 trim_trailing_whitespace.pattern = re.compile(r"\s*?(\r?\n|$)")
 
 
+class TestTrailingWhitespacePattern(unittest.TestCase):
+    def test_various_strings(self):
+        def _test(input, output=None):
+            if output is None:
+                output = input
+            self.assertEqual(output, trim_trailing_whitespace(input))
+        _test('')
+        _test('\n')
+        _test('\r\n')
+        _test('a')
+        _test(' a')
+        _test('  a')
+        _test('1234')
+        _test(u'abcd\xe9')
+        _test(' ', '')
+        _test(' \n', '\n')
+        _test(' \r\n', '\r\n')
+        _test(' a ', ' a')
+        _test('  a ', '  a')
+        _test(' a \r\n  b   \n c\n ', ' a\r\n  b\n c\n')
+        _test(u'abcd\xe9 ', u'abcd\xe9')
+
+
 def trim_trailing_whitespace_in_file(filename, new_file=False):
     '''Remove trailing white spaces in new and modified lines in a filename'''
     with open(filename, 'rb') as fileobj:
@@ -204,17 +228,19 @@ def check_filenames(files):
 
     '''
 
-    # TODO: Test on a real linux / mac machine
-    if platform.system() != 'Windows':
-        manifest_lower2case = {}
-        for f in get_branch_files():
-            flower = f.lower()
-            if flower in manifest_lower2case:
-                print(f'   Case-folding collision between "{f}" and '
-                      f'"{manifest_lower2case[flower]}"')
-                return 1
-            else:
-                manifest_lower2case[flower] = f
+    # This issue is only possible on Linux
+    if platform.system() == 'Linux':
+        manifest_lower2case = {f.lower():f for f in get_branch_files()}
+        commit_files = get_commit_files()
+        for commit_type in commit_files:
+            for f in commit_files[commit_type]:
+                flower = f.lower()
+                if flower in manifest_lower2case:
+                    print(f'   Case-folding collision between "{f}" and '
+                          f'"{manifest_lower2case[flower]}"')
+                    return 1
+                else:
+                    manifest_lower2case[flower] = f
 
     # We permit repository paths to be up to 50 characters long excluding the
     # final slash character.
@@ -317,16 +343,108 @@ def check_file_content(filename, data):
         num = 0
         for line in data.splitlines():
             num += 1
-            if check_file_content.cpp_include_backslash_pattern.search(line):
+            if cpp_include_backslash_pattern.search(line):
                 print(f'   {filename}:{num} - Backslash in #include')
                 return 1
-            if check_file_content.cpp_throw_std_exception_pattern.search(line):
+            if cpp_throw_std_exception_pattern.search(line):
                 print(f'   {filename}:{num} - std::exception thrown')
                 return 1
 
     return 0
-check_file_content.cpp_include_backslash_pattern = re.compile('^\\s*\\#\\s*include\\s*[\\"\\<][^\\"\\>]*\\\\', re.MULTILINE)
-check_file_content.cpp_throw_std_exception_pattern = re.compile(r'\bthrow\s+(std\s*::\s*)?exception\s*\(')
+cpp_include_backslash_pattern = re.compile('^\\s*\\#\\s*include\\s*[\\"\\<][^\\"\\>]*\\\\', re.MULTILINE)
+cpp_throw_std_exception_pattern = re.compile(r'\bthrow\s+(std\s*::\s*)?exception\s*\(')
+
+
+class TestCppIncludeBackslashPattern(unittest.TestCase):
+    def test_no_path_separator(self):
+        self.assertIsNone(
+                cpp_include_backslash_pattern.search('#include <iostream>'))
+        self.assertIsNone(
+                cpp_include_backslash_pattern.search('#include "header.h"'))
+
+    def test_commented_out(self):
+        self.assertIsNone(
+                cpp_include_backslash_pattern.search('//#include "a\\b"'))
+
+    def test_multiline(self):
+        self.assertIsNotNone(
+                cpp_include_backslash_pattern.search(
+                    'a\nb\n#include "a\\b"\nc\nd\n'))
+
+    def do_test_with_each_separator(self, *args):
+        good = "/".join(args)
+        bad = "\\".join(args)
+        self.assertIsNone(cpp_include_backslash_pattern.search(good))
+        self.assertIsNotNone(cpp_include_backslash_pattern.search(bad))
+
+    def test_angle_brackets(self):
+        self.do_test_with_each_separator('#include <some', 'path>')
+
+    def test_quotes(self):
+        self.do_test_with_each_separator('#include "another', 'file"')
+
+    def test_unusual_characters(self):
+        self.do_test_with_each_separator(
+                '#include "1', "! 2£$€%^&()", "-_=+[{]};'@#~,.", '`¬¦"')
+
+    def test_space(self):
+        self.do_test_with_each_separator(' #include "a', 'b"')
+        self.do_test_with_each_separator('  #include "c', 'd"')
+        self.do_test_with_each_separator('     #include "e', 'f"')
+        self.do_test_with_each_separator('\t#include "e', 'f"')
+        self.do_test_with_each_separator('# include "g', 'h"')
+        self.do_test_with_each_separator('#  include "i', 'j"')
+        self.do_test_with_each_separator('#include"i', 'j"')
+        self.do_test_with_each_separator('#include<k', 'l>')
+        self.do_test_with_each_separator(
+                '     #      include           "       m      ',
+                '  n        "     ')
+
+    def test_comment(self):
+        self.do_test_with_each_separator(
+                '#include "x', 'y"// back\\slashes\\ in comment')
+
+
+class TestCppThrowStdExceptionPattern(unittest.TestCase):
+    def test_find(self):
+        self.assertIsNotNone(
+                cpp_throw_std_exception_pattern.search(
+                    'throw std::exception();'))
+        self.assertIsNotNone(
+                cpp_throw_std_exception_pattern.search(
+                    'throw exception("string")'))
+        self.assertIsNotNone(
+                cpp_throw_std_exception_pattern.search('throw exception()'))
+        self.assertIsNotNone(
+                cpp_throw_std_exception_pattern.search(
+                    ' {throw exception();}//comment'))
+
+    def test_spaces(self):
+        self.assertIsNotNone(
+                cpp_throw_std_exception_pattern.search(
+                    ' throw  std   ::    exception     (   )  '))
+
+    def test_dont_find_runtime_error(self):
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search(
+                    'throw std::runtime_error();'))
+
+    def test_dont_find_variable_named_exception(self):
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search('throw exception'))
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search('throw exception;'))
+
+    def test_dont_find_catch_exception(self):
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search(
+                    'catch (std::exception)'))
+
+    def test_match_word_boundaries(self):
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search('throw exceptionblah'))
+        self.assertIsNone(
+                cpp_throw_std_exception_pattern.search('rethrow exception'))
 
 
 def check_content(files):
