@@ -137,9 +137,10 @@ def check_do_not_merge(files, new_files=False):
     This check is case insensitive.
 
     Note that if found this will abort the merge, leaving it in a merge
-    conflict resolution state. User should either simply "git merge --abort"
-    or fix the issue (eg. by removing the offending file or part from the
-    index) before doing "git commit" to complete the merge.
+    conflict resolution state. User should either simply
+        1. Run "git merge --abort", or
+        2. Fix the issue (eg. by removing the offending file or part from the
+           index) before doing "git commit" to complete the merge.
 
     '''
     retval = 0
@@ -219,11 +220,11 @@ def remove_trailing_white_space(files, new_files=False):
 def check_filenames(files):
     '''Check file path and name meet requirement.
 
-    For file path, specifically it's all ASCII and roughly within max length
-    on Windows.
+    For file path, specifically that it's all ASCII and roughly within max
+    length on Windows.
 
-    For file name, check for case conflict, does not include illegal
-    characters, reserved names on Windows, and does not end in a period or
+    For file name, check for case conflict, that it does not include illegal
+    characters or Windows reserved namess, and does not end in a period or
     whitespace.
 
     '''
