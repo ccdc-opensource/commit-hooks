@@ -13,8 +13,15 @@ import platform
 import re
 import subprocess
 import unittest
+import sys
 
 
+# Absolute file size limit (in MB) - it's 100MB on github.com
+HARD_SIZE_THRESHOLD = 99.0
+# Internal file size limit (in MB) - allow if commit message includes marker
+SOFT_SIZE_THRESHOLD = 10.0
+# Large file marker in commit message
+LARGE_FILE_MARKER = 'LARGE_FILE'
 # Check file content if it has these extensions
 CHECKED_EXTS = [
         '.bat',
@@ -45,6 +52,10 @@ CHECKED_EXTS = [
 
 def _get_output(command, cwd='.'):
     return subprocess.check_output(command, shell=True, cwd=cwd).decode()
+
+
+def _fail(msg):
+    print(f'COMMIT FAIL: {msg}')
 
 
 def get_user():
@@ -122,8 +133,8 @@ def check_do_not_merge_in_file(filename, new_file=False):
             print(f'Error {exc}: {line_num-1} in {filename}')
             continue
         if 'do not merge' in line.lower():
-            print(f'   Found DO NOT MERGE in "{filename}".\n'
-                  '   Run "git merge --abort" to start again, '
+            _fail(f'Found DO NOT MERGE in "{filename}".\n'
+                  'Run "git merge --abort" to start again, '
                   f'or remove {filename} from index before completing the '
                   'merge with "git commit".')
             return 1
@@ -238,7 +249,7 @@ def check_filenames(files):
                 flower = f.lower()
                 if (flower in manifest_lower2case and
                         manifest_lower2case[flower] != f):
-                    print(f'   Case-folding collision between "{f}" and '
+                    _fail(f'Case-folding collision between "{f}" and '
                           f'"{manifest_lower2case[flower]}"')
                     return 1
                 else:
@@ -270,28 +281,27 @@ def check_filenames(files):
         filename = Path(filepath).name
         for ch in filename:
             if ch in ILLEGAL_CHARS or ord(ch) <= 31:
-                print(f'   Illegal character "{ch}" in filename "{filename}".')
+                _fail(f'Illegal character "{ch}" in filename "{filename}".')
                 return 1
 
         if Path(filename).stem in DEVICE_NAMES:
-            print(f'   Illegal filename "{filename}" - reserved on Windows.\n')
+            _fail(f'Illegal filename "{filename}" - reserved on Windows.\n')
             return 1
 
         if filepath[-1] == '.' or filepath[-1].isspace():
-            print(filepath)
-            print(f'   Illegal file name "{filepath}" - '
+            _fail(f'Illegal file name "{filepath}" - '
                   'names are not permitted to end with "." or whitespace.')
             return 1
 
         try:
             filepath.encode('ascii')
         except UnicodeDecodeError:
-            print(f'   Illegal path "{filepath}" - '
+            _fail(f'Illegal path "{filepath}" - '
                   'only ASCII characters are permitted.')
             return 1
 
         if len(filepath) > max_subpath_chars:
-            print(f'   File path "{filepath}" is too long, it must be '
+            _fail(f'File path "{filepath}" is too long, it must be '
                   f'{max_subpath_chars} characters or less.')
             return 1
 
@@ -315,7 +325,7 @@ def check_username():
             message += 'buildman or root user should not be used'
         else:
             message += 'To set this up see https://docs.github.com/en/github/using-git/setting-your-username-in-git'
-        print(message)
+        _fail(message)
         return 1
 
     return 0
@@ -323,19 +333,19 @@ def check_username():
 
 def check_file_content(filename, data):
     if 'do not commit' in data.lower():
-        print(f'   Found DO NOT COMMIT in "{filename}". '
+        _fail(f'Found DO NOT COMMIT in "{filename}". '
               'Remove file from index.')
         return 1
 
     if '\t' in data:
-        print(f'   Found tab characters in "{filename}". Replace with spaces.')
+        _fail(f'Found tab characters in "{filename}". Replace with spaces.')
         return 1
 
     # For file types that need a terminating newline
     if any(map(lambda ext: filename.endswith(ext),
                ['.c', '.cpp', '.h', '.inl'])):
         if not data.endswith('\n'):
-            print(f'   Missing terminating newline in {filename}')
+            _fail(f'Missing terminating newline in {filename}')
             return 1
 
     # NOTE: Not checking eol
@@ -346,10 +356,10 @@ def check_file_content(filename, data):
         for line in data.splitlines():
             num += 1
             if cpp_include_backslash_pattern.search(line):
-                print(f'   {filename}:{num} - Backslash in #include')
+                _fail(f'{filename}:{num} - Backslash in #include')
                 return 1
             if cpp_throw_std_exception_pattern.search(line):
-                print(f'   {filename}:{num} - std::exception thrown')
+                _fail(f'{filename}:{num} - std::exception thrown')
                 return 1
 
     return 0
@@ -479,7 +489,7 @@ def check_content(files):
         try:
             data = Path(filename).read_text()
         except Exception as exc:
-            print(exc)
+            print(f'Error {exc}: reading {filename}')
             continue
 
         # Skip binary file
@@ -490,6 +500,31 @@ def check_content(files):
         retval += check_file_content(filename, data)
 
     return retval
+
+
+def check_commit_msg(message, files):
+    '''Check commit message (and file size).
+
+    Abort if file size exceeds hard (github.com) limit.
+
+    If file size exceeds our soft (internal) limit, flag up if commit message
+    does not contain required marker.
+
+    '''
+    for filename in files:
+        size = Path(filename).stat().st_size / 1024**2
+        if size > HARD_SIZE_THRESHOLD:
+            _fail(f'{filename} is larger than the github limit. '
+                  'Remove file from index.')
+            return 1
+        elif size > SOFT_SIZE_THRESHOLD:
+            if LARGE_FILE_MARKER not in message:
+                _fail(f'{filename} is larger than {SOFT_SIZE_THRESHOLD} MB.'
+                      f' Add "{LARGE_FILE_MARKER}" to commit message, '
+                      'or remove file from index.')
+                return 1
+
+    return 0
 
 
 def commit_hook(merge=False):
@@ -513,5 +548,16 @@ def commit_hook(merge=False):
 
         print(' Check content ...')
         retval += check_content(files['M'] + files['A'])
+
+    return retval
+
+
+def commit_msg_hook():
+    retval = 0
+    files = get_commit_files()
+    commit_message = Path(sys.argv[1]).read_text()
+
+    print(' Check commit message ...')
+    retval += check_commit_msg(commit_message, files['M'] + files['A'])
 
     return retval
