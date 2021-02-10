@@ -231,12 +231,13 @@ def check_filenames(files):
 
     # This issue is only possible on Linux
     if platform.system() == 'Linux':
-        manifest_lower2case = {f.lower():f for f in get_branch_files()}
+        manifest_lower2case = {f.lower(): f for f in get_branch_files()}
         commit_files = get_commit_files()
         for commit_type in commit_files:
             for f in commit_files[commit_type]:
                 flower = f.lower()
-                if flower in manifest_lower2case:
+                if (flower in manifest_lower2case and
+                        manifest_lower2case[flower] != f):
                     print(f'   Case-folding collision between "{f}" and '
                           f'"{manifest_lower2case[flower]}"')
                     return 1
@@ -465,8 +466,8 @@ def check_content(files):
             c. It does not throw std::exception
 
     '''
-
     retval = 0
+
     for filename in files:
         # Skip file if extension is not in the checked list
         if not any([filename.endswith(checked_ext)
