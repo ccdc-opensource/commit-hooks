@@ -48,6 +48,8 @@ CHECKED_EXTS = [
         '.svc',
         '.tpl',
         ]
+# File types that need a terminating newline
+TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
 
 def _get_output(command, cwd='.'):
@@ -395,8 +397,7 @@ def check_file_content(filename, data):
         return 1
 
     # For file types that need a terminating newline
-    if any(map(lambda ext: filename.endswith(ext),
-               ['.c', '.cpp', '.h', '.inl'])):
+    if any(map(lambda ext: filename.endswith(ext), TERMINATING_NEWLINE_EXTS)):
         if not data.endswith('\n'):
             _fail(f'Missing terminating newline in {filename}')
             return 1
@@ -537,7 +538,7 @@ def check_content(files):
                     for checked_ext in CHECKED_EXTS]):
             continue
 
-        # NOTE: ignored_files / ignored_exts / ignored_patterns not used
+        # NOTE: ignored_patterns not implemented
 
         try:
             data = Path(filename).read_text()
