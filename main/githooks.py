@@ -58,6 +58,10 @@ def _fail(msg):
     print(f'COMMIT FAIL: {msg}')
 
 
+def _is_windows():
+    return platform.system() == 'Windows'
+
+
 def get_user():
     '''Get user making the commit'''
     output = _get_output('git var GIT_AUTHOR_IDENT')
@@ -114,6 +118,52 @@ def get_changed_lines(modified_file):
             lines.append(start)
     return lines
 get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
+
+
+def get_config_setting(setting):
+    '''Get the value of a config setting'''
+    try:
+        return _get_output(f'git config --get {setting}').strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def check_eol(files):
+    '''Check line endings if autocrlf is not configured correctly.
+
+    If autocrlf is configured as recommended, we skip this check.
+
+    Recommended configuration:
+        1. On Windows: `git config --global core.autocrlf true`
+        2. Otherwise (including WSL): `git config --global core.autocrlf input`
+
+    Otherwise check all the text files for LF line endings.
+    '''
+    autocrlf = get_config_setting('core.autocrlf')
+    if _is_windows():
+        if autocrlf == 'true':
+            return 0
+    else:
+        if autocrlf == 'input':
+            return 0
+
+    # As the client environment is not configured with autocrlf
+    # we need to ensure that every text file does not contain CRLF.
+    for filename in files:
+        try:
+            with open(filename, 'rb') as fileobj:
+                data = fileobj.read().decode()
+        except UnicodeDecodeError:
+            continue
+
+        # Skip binary file
+        if '\0' in data:
+            continue
+
+        if data.find('\r\n') != -1:
+            _fail(f'Bad line endings in {filename}')
+            return 1
+    return 0
 
 
 def check_do_not_merge_in_file(filename, new_file=False):
@@ -192,8 +242,11 @@ class TestTrailingWhitespacePattern(unittest.TestCase):
 
 def trim_trailing_whitespace_in_file(filename, new_file=False):
     '''Remove trailing white spaces in new and modified lines in a filename'''
-    with open(filename, 'rb') as fileobj:
-        lines = fileobj.read().decode().splitlines(True)
+    try:
+        with open(filename, 'rb') as fileobj:
+            lines = fileobj.read().decode().splitlines(True)
+    except UnicodeDecodeError:
+        return
 
     if new_file:
         line_nums = range(1, len(lines)+1)
@@ -241,7 +294,7 @@ def check_filenames(files):
     '''
 
     # This issue is only possible on Linux
-    if platform.system() == 'Linux':
+    if not _is_windows():
         manifest_lower2case = {f.lower(): f for f in get_branch_files()}
         commit_files = get_commit_files()
         for commit_type in commit_files:
@@ -546,7 +599,10 @@ def commit_hook(merge=False):
         print(' Check filenames ...')
         retval += check_filenames(files['M'] + files['A'])
 
-        print(' Check content ...')
+        print(' Check line endings ...')
+        retval += check_eol(files['M'] + files['A'])
+
+        print(' Check file content ...')
         retval += check_content(files['M'] + files['A'])
 
     return retval
