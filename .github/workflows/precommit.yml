@@ -1,0 +1,7 @@
+name: pre-commit-check
+on: [push]
+jobs:
+  check-something:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
