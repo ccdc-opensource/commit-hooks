@@ -1,5 +1,5 @@
 name: pre-commit-check
-on: [push]
+on: [push, pull_request]
 jobs:
   check-something:
     runs-on: ubuntu-latest
