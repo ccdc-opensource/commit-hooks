@@ -13,4 +13,8 @@ jobs:
         #      - name: Run flake8
         #        run: flake8 main && exit 0
       - name: Run git
-        run: git diff-index HEAD --cached
+        run: |
+          git diff-index HEAD
+          git diff-index HEAD --cached
+          git var GIT_AUTHOR_IDENT
+          git branch
