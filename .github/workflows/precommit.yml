@@ -10,6 +10,8 @@ jobs:
           python-version: "3.7"
       - run: |
           echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
+      - run: |
+          echo $(git diff-index HEAD --cached)
       - id: files
         uses: jitterbit/get-changed-files@v1
         with:
@@ -18,5 +20,5 @@ jobs:
           mapfile -d ',' -t added_modified_files < <(printf '%s,' '${{ steps.files.outputs.added_modified }}')
           for added_modified_file in "${added_modified_files[@]}"; do
             echo "Do something with this ${added_modified_file}."
-            echo "Do something with this ${added_modified_file}."
+            echo $(git diff-index HEAD -p --unified=0 ${added_modified_file})
           done
