@@ -12,6 +12,8 @@ jobs:
           echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
       - run: |
           echo $(git diff-index HEAD --cached)
+      - run: |
+          echo $(git diff-index HEAD)
       - id: files
         uses: jitterbit/get-changed-files@v1
         with:
