@@ -14,9 +14,6 @@ jobs:
           echo $(git diff-index HEAD --cached)
       - run: |
           echo $(git diff-index HEAD)
-      - name: Extract branch name
-        shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       - name: Branch name 1
         run: echo "branch $GITHUB_REF sha $GITHUB_SHA repo $GITHUB_REPOSITORY actor $GITHUB_ACTOR"
       - name: Branch name 2
@@ -31,5 +28,5 @@ jobs:
           mapfile -d ',' -t added_modified_files < <(printf '%s,' '${{ steps.files.outputs.added_modified }}')
           for added_modified_file in "${added_modified_files[@]}"; do
             echo "Do something with this ${added_modified_file}."
-            echo $(git diff-index HEAD -p --unified=0 ${added_modified_file})
+            main/githooks.py ${add_modified_file}
           done

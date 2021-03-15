@@ -618,3 +618,7 @@ def commit_msg_hook():
     retval += check_commit_msg(commit_message, files['M'] + files['A'])
 
     return retval
+
+
+if __name__ == '__main__':
+    trim_trailing_whitespace_in_file(sys.argv[1], True)
