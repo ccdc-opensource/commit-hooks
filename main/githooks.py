@@ -283,6 +283,57 @@ def remove_trailing_white_space(files, new_files=False):
         trim_trailing_whitespace_in_file(filename, new_files)
 
 
+def check_filename(filepath):
+    # We permit repository paths to be up to 50 characters long excluding the
+    # final slash character.
+    # Windows allows paths with up to 259 characters (260 including a
+    # terminating null char)
+    max_subpath_chars = 208
+
+    # It's easy to add files on Linux that will make the repository unusable
+    # on Windows.
+    # Windows filename rules are here:
+    # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
+    # This checks for those cases and stops the commit if found.
+
+    # Filename must not contain these characters
+    ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
+    # These names are reserved on Windows
+    DEVICE_NAMES = frozenset([
+        'con', 'prn', 'aux', 'nul',
+        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+        ])
+
+    print(f'  Checking file {filepath}')
+    filename = Path(filepath).name
+    for ch in filename:
+        if ch in ILLEGAL_CHARS or ord(ch) <= 31:
+            _fail(f'Illegal character "{ch}" in filename "{filename}".')
+            return 1
+
+    if Path(filename).stem in DEVICE_NAMES:
+        _fail(f'Illegal filename "{filename}" - reserved on Windows.\n')
+        return 1
+
+    if filepath[-1] == '.' or filepath[-1].isspace():
+        _fail(f'Illegal file name "{filepath}" - '
+              'names are not permitted to end with "." or whitespace.')
+        return 1
+
+    try:
+        filepath.encode('ascii')
+    except UnicodeDecodeError:
+        _fail(f'Illegal path "{filepath}" - '
+              'only ASCII characters are permitted.')
+        return 1
+
+    if len(filepath) > max_subpath_chars:
+        _fail(f'File path "{filepath}" is too long, it must be '
+              f'{max_subpath_chars} characters or less.')
+        return 1
+
+
 def check_filenames(files):
     '''Check file path and name meet requirement.
 
@@ -310,56 +361,9 @@ def check_filenames(files):
                 else:
                     manifest_lower2case[flower] = f
 
-    # We permit repository paths to be up to 50 characters long excluding the
-    # final slash character.
-    # Windows allows paths with up to 259 characters (260 including a
-    # terminating null char)
-    max_subpath_chars = 208
-
-    # It's easy to add files on Linux that will make the repository unusable
-    # on Windows.
-    # Windows filename rules are here:
-    # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
-    # This checks for those cases and stops the commit if found.
-
-    # Filename must not contain these characters
-    ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
-    # These names are reserved on Windows
-    DEVICE_NAMES = frozenset([
-        'con', 'prn', 'aux', 'nul',
-        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
-        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
-        ])
-
+    retval = 0
     for filepath in files:
-        print(f'  Checking file {filepath}')
-        filename = Path(filepath).name
-        for ch in filename:
-            if ch in ILLEGAL_CHARS or ord(ch) <= 31:
-                _fail(f'Illegal character "{ch}" in filename "{filename}".')
-                return 1
-
-        if Path(filename).stem in DEVICE_NAMES:
-            _fail(f'Illegal filename "{filename}" - reserved on Windows.\n')
-            return 1
-
-        if filepath[-1] == '.' or filepath[-1].isspace():
-            _fail(f'Illegal file name "{filepath}" - '
-                  'names are not permitted to end with "." or whitespace.')
-            return 1
-
-        try:
-            filepath.encode('ascii')
-        except UnicodeDecodeError:
-            _fail(f'Illegal path "{filepath}" - '
-                  'only ASCII characters are permitted.')
-            return 1
-
-        if len(filepath) > max_subpath_chars:
-            _fail(f'File path "{filepath}" is too long, it must be '
-                  f'{max_subpath_chars} characters or less.')
-            return 1
-
+        retval += check_filename(filepath)
     return 0
 
 
@@ -621,4 +625,6 @@ def commit_msg_hook():
 
 
 if __name__ == '__main__':
-    trim_trailing_whitespace_in_file(sys.argv[1], True)
+    filepath = sys.argv[1]
+    trim_trailing_whitespace_in_file(filepath, True)
+    check_filename(filepath)
