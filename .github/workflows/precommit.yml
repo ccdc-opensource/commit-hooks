@@ -14,6 +14,15 @@ jobs:
           echo $(git diff-index HEAD --cached)
       - run: |
           echo $(git diff-index HEAD)
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      - name: Branch name 1
+        run: echo running on branch ${GITHUB_REF##*/}
+      - name: Branch name 2
+        run: echo running on branch ${GITHUB_HEAD_REF##*/}
+      - name: Branch name 3
+        run: echo running on branch ${GITHUB_BASE_REF##*/}
       - id: files
         uses: jitterbit/get-changed-files@v1
         with:
