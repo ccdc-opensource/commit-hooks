@@ -627,4 +627,5 @@ def commit_msg_hook():
 if __name__ == '__main__':
     filepath = sys.argv[1]
     trim_trailing_whitespace_in_file(filepath, True)
+    check_do_not_merge_in_file(filepath, True)
     check_filename(filepath)

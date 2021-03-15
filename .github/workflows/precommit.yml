@@ -8,18 +8,9 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: "3.7"
-      - run: |
-          echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
-      - run: |
-          echo $(git diff-index HEAD --cached)
-      - run: |
-          echo $(git diff-index HEAD)
-      - name: Branch name 1
+      - run: echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
+      - name: Branch name
         run: echo "branch $GITHUB_REF sha $GITHUB_SHA repo $GITHUB_REPOSITORY actor $GITHUB_ACTOR"
-      - name: Branch name 2
-        run: echo running on branch ${GITHUB_HEAD_REF##*/}
-      - name: Branch name 3
-        run: echo running on branch ${GITHUB_BASE_REF##*/}
       - id: files
         uses: jitterbit/get-changed-files@v1
         with:
