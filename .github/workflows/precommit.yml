@@ -1,7 +1,7 @@
 name: pre-commit-check
 on: [push, pull_request]
 jobs:
-  check-something:
+  Pull-request-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1

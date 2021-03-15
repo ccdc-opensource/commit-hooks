@@ -517,6 +517,36 @@ class TestCppThrowStdExceptionPattern(unittest.TestCase):
                 cpp_throw_std_exception_pattern.search('rethrow exception'))
 
 
+def get_file_content(filename):
+    '''Return the content of a file.
+
+    We do so if:
+        1. Filename has certain extensions
+        2. The content can be read
+        3. It's a text file
+
+    Otherwise return None
+    '''
+    # Skip file if extension is not in the checked list
+    if not any([filename.endswith(checked_ext)
+                for checked_ext in CHECKED_EXTS]):
+        return
+
+    # NOTE: ignored_patterns not implemented
+
+    try:
+        data = Path(filename).read_text()
+    except Exception as exc:
+        print(f'Error {exc}: reading {filename}')
+        return
+
+    # Skip binary file
+    if '\0' in data:
+        return
+
+    return data
+
+
 def check_content(files):
     '''Check content of files.
 
@@ -537,23 +567,7 @@ def check_content(files):
     retval = 0
 
     for filename in files:
-        # Skip file if extension is not in the checked list
-        if not any([filename.endswith(checked_ext)
-                    for checked_ext in CHECKED_EXTS]):
-            continue
-
-        # NOTE: ignored_patterns not implemented
-
-        try:
-            data = Path(filename).read_text()
-        except Exception as exc:
-            print(f'Error {exc}: reading {filename}')
-            continue
-
-        # Skip binary file
-        if '\0' in data:
-            continue
-
+        data = get_file_content(filename)
         print(f'  Checking file {filename}')
         retval += check_file_content(filename, data)
 
@@ -629,3 +643,5 @@ if __name__ == '__main__':
     trim_trailing_whitespace_in_file(filepath, True)
     check_do_not_merge_in_file(filepath, True)
     check_filename(filepath)
+    data = get_file_content(filepath)
+    check_file_content(filepath, data)
