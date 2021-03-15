@@ -569,7 +569,8 @@ def check_content(files):
     for filename in files:
         data = get_file_content(filename)
         print(f'  Checking file {filename}')
-        retval += check_file_content(filename, data)
+        if data is not None:
+            retval += check_file_content(filename, data)
 
     return retval
 
@@ -641,7 +642,11 @@ def commit_msg_hook():
 if __name__ == '__main__':
     filepath = sys.argv[1]
     trim_trailing_whitespace_in_file(filepath, True)
-    check_do_not_merge_in_file(filepath, True)
-    check_filename(filepath)
+
+    retval = 0
+    retval += check_do_not_merge_in_file(filepath, True)
+    retval += check_filename(filepath)
     data = get_file_content(filepath)
-    check_file_content(filepath, data)
+    retval += check_file_content(filepath, data)
+
+    sys.exit(retval)
