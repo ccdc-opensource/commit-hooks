@@ -333,6 +333,8 @@ def check_filename(filepath):
               f'{max_subpath_chars} characters or less.')
         return 1
 
+    return 0
+
 
 def check_filenames(files):
     '''Check file path and name meet requirement.
