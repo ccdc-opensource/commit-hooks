@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       - name: Branch name 1
-        run: echo running on branch ${GITHUB_REF##*/}
+        run: echo "branch $GITHUB_REF sha $GITHUB_SHA repo $GITHUB_REPOSITORY actor $GITHUB_ACTOR"
       - name: Branch name 2
         run: echo running on branch ${GITHUB_HEAD_REF##*/}
       - name: Branch name 3
