@@ -60,6 +60,10 @@ def _is_github_event():
     return False
 
 
+def _skip(filename, msg):
+    print(f'SKIP {filename}: {msg}')
+
+
 def _fail(msg):
     print(f'COMMIT FAIL: {msg}')
 
@@ -545,6 +549,7 @@ def get_file_content(filename):
     # Skip file if extension is not in the checked list
     if not any([filename.endswith(checked_ext)
                 for checked_ext in CHECKED_EXTS]):
+        _skip(filename, 'File extension is excluded')
         return
 
     # NOTE: ignored_patterns not implemented
@@ -557,6 +562,7 @@ def get_file_content(filename):
 
     # Skip binary file
     if '\0' in data:
+        _skip(filename, 'Not a text file')
         return
 
     return data
