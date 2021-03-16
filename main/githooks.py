@@ -639,16 +639,3 @@ def commit_msg_hook():
     retval += check_commit_msg(commit_message, files['M'] + files['A'])
 
     return retval
-
-
-if __name__ == '__main__':
-    filepath = sys.argv[1]
-    trim_trailing_whitespace_in_file(filepath, True)
-
-    retval = 0
-    retval += check_do_not_merge_in_file(filepath, True)
-    retval += check_filename(filepath)
-    data = get_file_content(filepath)
-    retval += check_file_content(filepath, data)
-
-    sys.exit(retval)
