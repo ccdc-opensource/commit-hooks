@@ -6,6 +6,7 @@ Module for a git hook.
 
 from collections import defaultdict
 from pathlib import Path
+import os
 import platform
 import re
 import subprocess
@@ -53,6 +54,12 @@ def _get_output(command, cwd='.'):
     return subprocess.check_output(command, shell=True, cwd=cwd).decode()
 
 
+def _is_github_event():
+    if 'GITHUB_EVENT_NAME' in os.environ:
+        return True
+    return False
+
+
 def _fail(msg):
     print(f'COMMIT FAIL: {msg}')
 
@@ -63,14 +70,23 @@ def _is_windows():
 
 def get_user():
     '''Get user making the commit'''
-    output = _get_output('git var GIT_AUTHOR_IDENT')
-    match = re.match(r'^(.+) <', output)
-    return match.group(1)
+    if _is_github_event():
+        return os.environ['GITHUB_ACTOR']
+    else:
+        output = _get_output('git var GIT_AUTHOR_IDENT')
+        match = re.match(r'^(.+) <', output)
+        return match.group(1)
 
 
 def get_branch():
     '''Get current branch'''
-    return _get_output('git branch').split()[-1]
+    if _is_github_event():
+        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+            return os.environ['GITHUB_HEAD_REF']
+        else:
+            return os.environ['GITHUB_REF'].split('/')[-1]
+    else:
+        return _get_output('git branch').split()[-1]
 
 
 def get_branch_files():

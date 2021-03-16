@@ -12,8 +12,11 @@ import githooks
 
 if __name__ == '__main__':
 
-    for k,v in os.environ.items():
-        print(f'{k}: {v}')
+    #for k,v in os.environ.items():
+    #    print(f'{k}: {v}')
+
+    print(githooks.get_user())
+    print(githooks.get_branch())
 
     filepath = sys.argv[1]
     githooks.trim_trailing_whitespace_in_file(filepath, True)
