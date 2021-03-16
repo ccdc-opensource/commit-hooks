@@ -6,7 +6,7 @@ This is a github action entry point.
 
 import sys
 
-sys.path.insert(0, 'main')
+sys.path.insert(0, './main')
 import githooks
 
 if __name__ == '__main__':
