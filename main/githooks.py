@@ -93,6 +93,14 @@ def get_branch():
         return _get_output('git branch').split()[-1]
 
 
+def get_event():
+    '''Get the git event'''
+    if _is_github_event():
+        return os.environ['GITHUB_EVENT_NAME']
+    else:
+        return 'commit'
+
+
 def get_branch_files():
     '''Get all files in branch'''
     branch = get_branch()
