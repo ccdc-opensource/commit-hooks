@@ -1,7 +1,32 @@
-# commit-hooks
-A set of commit hooks that repositories can use to automate code checks
+This repository contains files that can be used as local git hooks and a github
+action.
 
-It is recommended at all developers set up the hooks.
+It does a few checks on source codes to ensure compliance with some general
+CCDC coding standard.
+
+# Github action
+
+## Usage
+See action.yml in the root of the repository.
+
+Example:
+    - id: files
+      uses: jitterbit/get-changed-files@v1
+      with:
+        format: 'csv'
+    - id: check_modified_files
+      uses: ccdc-opensource/commit-hooks@main
+      with:
+        files: ${{ steps.files.outputs.modified }}
+        new_files: 0
+
+# commit-hooks
+You can use this as git hooks for local repositories.  
+
+A set of hooks include:
+* commit-msg
+* pre-commit
+* pre-merge-commit
 
 ## Setting up
 1. Clone this repo

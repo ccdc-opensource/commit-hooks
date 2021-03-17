@@ -24,6 +24,7 @@ if __name__ == '__main__':
 
     if files:
         for filepath in files.split(','):
+            print(filepath)
             githooks.trim_trailing_whitespace_in_file(filepath, new_files)
 
             retval += githooks.check_do_not_merge_in_file(filepath, new_files)
