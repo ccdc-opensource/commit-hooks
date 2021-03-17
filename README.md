@@ -10,15 +10,17 @@ CCDC coding standard.
 See action.yml in the root of the repository.
 
 Example:
-    - id: files
-      uses: jitterbit/get-changed-files@v1
-      with:
-        format: 'csv'
-    - id: check_modified_files
-      uses: ccdc-opensource/commit-hooks@main
-      with:
-        files: ${{ steps.files.outputs.modified }}
-        new_files: 0
+```yaml
+      - id: files
+        uses: jitterbit/get-changed-files@v1
+        with:
+          format: 'csv'
+      - id: check_modified_files
+        uses: ccdc-opensource/commit-hooks@main
+        with:
+          files: ${{ steps.files.outputs.modified }}
+          new_files: 0
+```
 
 # commit-hooks
 You can use this as git hooks for local repositories.  
