@@ -6,6 +6,15 @@ inputs:
 runs:
   using: "docker"
   image: "Dockerfile"
+inputs:
+  files:
+    description: The list of files
+    required: true
+    default: []
+  new_files:
+    description: If the files are new (fale if modified)
+    required: true
+    default: false
 branding:
   icon: 'check-square'
   color: 'green'
