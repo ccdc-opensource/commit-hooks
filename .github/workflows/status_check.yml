@@ -37,9 +37,9 @@ jobs:
         uses: ccdc-opensource/commit-hooks@precommit_action
         with:
           files: ${{ steps.files.outputs.added }}
-          new_files: true
+          new_files: 1
       - id: dog_food_modified_files
         uses: ccdc-opensource/commit-hooks@precommit_action
         with:
           files: ${{ steps.files.outputs.modified }}
-          new_files: false
+          new_files: 0
