@@ -7,7 +7,7 @@ inputs:
   files:
     description: The list of files
     required: true
-    default: []
+    default: ''
   new_files:
     description: If the files are new (fale if modified)
     required: true
