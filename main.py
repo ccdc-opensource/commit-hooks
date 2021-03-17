@@ -12,12 +12,12 @@ import githooks
 
 if __name__ == '__main__':
 
-    for k,v in os.environ.items():
-        print(f'{k}: {v}')
-    print(f'Checking {githooks.get_event()} by {githooks.get_user()}'
+#    for k,v in os.environ.items():
+#        print(f'{k}: {v}')
+    print(f'Checking {githooks.get_event()} by {githooks.get_user()} '
           f'in {githooks.get_branch()}')
 
-    files = os.environ.get('INPUT_FILES', [])
+    files = os.environ.get('INPUT_FILES', '')
     new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
     print(files)
     print(new_files)
