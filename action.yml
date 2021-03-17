@@ -9,9 +9,9 @@ inputs:
     required: true
     default: ''
   new_files:
-    description: If the files are new (fale if modified)
+    description: 1 if the files are new and 0 if the files are modified
     required: true
-    default: false
+    default: 0
 branding:
   icon: 'check-square'
   color: 'green'

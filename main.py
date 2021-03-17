@@ -18,13 +18,13 @@ if __name__ == '__main__':
           f'in {githooks.get_branch()}')
 
     files = os.environ.get('INPUT_FILES', [])
-    new_files = bool(os.environ.get('INPUT_NEW_FILES', False))
+    new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
     print(files)
     print(new_files)
 
     retval = 0
 
-    for filepath in files:
+    for filepath in files.split(','):
         githooks.trim_trailing_whitespace_in_file(filepath, new_files)
 
         retval += githooks.check_do_not_merge_in_file(filepath, new_files)
