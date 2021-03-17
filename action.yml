@@ -4,8 +4,8 @@ inputs:
   files:
     description: Changed files
 runs:
-  using: python
-  main: main.py
+  using: "docker"
+  image: "Dockerfile"
 branding:
   icon: 'check-square'
   color: 'green'
