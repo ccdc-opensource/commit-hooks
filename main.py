@@ -2,6 +2,8 @@
 '''
 This is a github action entry point.
 
+This github action does some checks on changed files.
+
 '''
 
 import os
@@ -12,18 +14,11 @@ import githooks
 
 if __name__ == '__main__':
 
-#    for k,v in os.environ.items():
-#        print(f'{k}: {v}')
     print(f'Checking {githooks.get_event()} by {githooks.get_user()} '
           f'in {githooks.get_branch()}')
 
-    print(os.environ.get('INPUT_FILES', ''))
-    print(os.environ.get('INPUT_NEW_FILES', 0))
     files = os.environ.get('INPUT_FILES', '')
     new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
-    print(files)
-    print(files.split(','))
-    print(new_files)
 
     retval = 0
 
