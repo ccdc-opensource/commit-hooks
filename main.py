@@ -17,6 +17,8 @@ if __name__ == '__main__':
     print(f'Checking {githooks.get_event()} by {githooks.get_user()} '
           f'in {githooks.get_branch()}')
 
+    print(os.environ.get('INPUT_FILES', ''))
+    print(os.environ.get('INPUT_NEW_FILES', 0))
     files = os.environ.get('INPUT_FILES', '')
     new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
     print(files)

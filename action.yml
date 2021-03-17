@@ -1,4 +1,5 @@
 name: Pull Request File Checks
+author: CCDC
 description: Check changed files in PR for compliance
 runs:
   using: "docker"
