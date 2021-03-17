@@ -1,8 +1,5 @@
 name: Pull Request File Checks
 description: Check changed files in PR for compliance
-inputs:
-  files:
-    description: Changed files
 runs:
   using: "docker"
   image: "Dockerfile"
