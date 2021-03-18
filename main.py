@@ -14,8 +14,8 @@ import githooks
 
 if __name__ == '__main__':
 
-    print(f'Checking {githooks.get_event()} by {githooks.get_user()} '
-          f'in {githooks.get_branch()}')
+    print(f'Checking {githooks.get_event()} commit {githooks.get_sha()} '
+          f'by {githooks.get_user()} in {githooks.get_branch()}')
 
     files = os.environ.get('INPUT_FILES', '')
     new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
@@ -25,8 +25,8 @@ if __name__ == '__main__':
     if files:
         for filepath in files.split(','):
             print(filepath)
-            githooks.trim_trailing_whitespace_in_file(filepath, new_files)
-
+            retval += githooks.trim_trailing_whitespace_in_file(
+                    filepath, new_file=new_files, in_place=False)
             retval += githooks.check_do_not_merge_in_file(filepath, new_files)
             retval += githooks.check_filename(filepath)
             data = githooks.get_file_content(filepath)

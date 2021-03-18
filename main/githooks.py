@@ -93,6 +93,14 @@ def get_branch():
         return _get_output('git branch').split()[-1]
 
 
+def get_sha():
+    '''Get the commit sha'''
+    if _is_github_event():
+        return os.environ['GITHUB_SHA']
+    else:
+        return ''
+
+
 def get_event():
     '''Get the git event'''
     if _is_github_event():
@@ -143,6 +151,7 @@ def get_changed_lines(modified_file):
                 lines.append(start + num)
         else:
             lines.append(start)
+    print(lines)
     return lines
 get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
@@ -267,7 +276,7 @@ class TestTrailingWhitespacePattern(unittest.TestCase):
         _test(u'abcd\xe9 ', u'abcd\xe9')
 
 
-def trim_trailing_whitespace_in_file(filename, new_file=False):
+def trim_trailing_whitespace_in_file(filename, new_file, in_place):
     '''Remove trailing white spaces in new and modified lines in a filename'''
     try:
         with open(filename, 'rb') as fileobj:
@@ -280,19 +289,23 @@ def trim_trailing_whitespace_in_file(filename, new_file=False):
     else:
         line_nums = get_changed_lines(filename)
 
-    modified_file = False
+    modified_file = False   # if trimming white space in place
+    modified_lines = []     # if flagging instead of trimming in place
 
     for line_num in line_nums:
         try:
             before = lines[line_num-1]
         except IndexError as exc:
-            print(f'Error {exc}: {line_num-1} in {filename}')
+            print(f'Error {exc}: {line_num} in {filename}')
             continue
         after = trim_trailing_whitespace(before)
         if before != after:
-            print(f'   Fixed line {line_num}')
-            modified_file = True
-            lines[line_num-1] = after
+            if in_place:
+                print(f'   Fixed line {line_num}')
+                modified_file = True
+                lines[line_num-1] = after
+            else:
+                modified_lines.append(str(line_num))
 
     if modified_file:
         with open(filename, 'wb') as fileobj:
@@ -300,12 +313,22 @@ def trim_trailing_whitespace_in_file(filename, new_file=False):
             fileobj.write(lines.encode())
         add_file_to_index(filename)
 
+    if modified_lines:
+        _fail(f'Found trailing white space in {filename} at lines: '
+              ','.join(modified_lines))
+        return 1
 
-def remove_trailing_white_space(files, new_files=False):
+    return 0
+
+
+def remove_trailing_white_space(files, new_files=False, in_place=True):
     '''Remove trailing white spaces in all new and modified lines'''
+    retval = 0
     for filename in files:
         print(f'  Checking file {filename}')
-        trim_trailing_whitespace_in_file(filename, new_files)
+        retval += trim_trailing_whitespace_in_file(filename, new_files,
+                                                   in_place)
+    return retval
 
 
 def check_filename(filepath):
@@ -391,7 +414,7 @@ def check_filenames(files):
     retval = 0
     for filepath in files:
         retval += check_filename(filepath)
-    return 0
+    return retval
 
 
 def check_username():
