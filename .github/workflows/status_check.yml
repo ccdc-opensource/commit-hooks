@@ -4,7 +4,9 @@ jobs:
   Pull-request-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v2
         with:
           python-version: "3.7"
