@@ -137,33 +137,47 @@ def get_commit_files():
     return result
 
 
+def parse_diff_header(header_line):
+    changed_lines = []
+    match = parse_diff_header.pattern.match(header_line)
+    start = int(match.group(1))
+    if match.group(2):
+        for num in range(int(match.group(3))):
+            changed_lines.append(start + num)
+    else:
+        changed_lines.append(start)
+    return changed_lines
+parse_diff_header.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
+
+
+class TestParseDiffHeaderPattern(unittest.TestCase):
+    def test_various_strings(self):
+        def _test(input, output):
+            self.assertListEqual(output, parse_diff_header(input))
+        _test('@@ -142 +178,3 @@', [178, 179, 180])
+        _test('@@ -142 +178,7 @@', [178, 179, 180, 181, 182, 183, 184])
+
+
 def get_changed_lines(modified_file):
     '''New and modified lines in modified file in current commit'''
     if _is_github_event():
         if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
             output = _get_output(
-                    f'git diff -p --unified=0 HEAD..main {modified_file}')
+                    f'git diff --unified=0 HEAD..{os.environ["GITHUB_BASE_REF"]} {modified_file}')
         else:
             output = _get_output(
-                    f'git diff -p --unified=0 HEAD..HEAD~ {modified_file}')
+                    f'git diff --unified=0 HEAD..HEAD~ {modified_file}')
     else:
         output = _get_output(
-                f'git diff-index HEAD -p --unified=0 {modified_file}')
+                f'git diff-index HEAD --unified=0 {modified_file}')
 
     lines = []
     for line in output.splitlines():
         if not line.startswith('@@'):
             continue
-        match = get_changed_lines.pattern.match(line)
-        start = int(match.group(1))
-        if match.group(2):
-            for num in range(int(match.group(3))):
-                lines.append(start + num)
-        else:
-            lines.append(start)
+        lines.extend(parse_diff_header(line))
     print(lines)
     return lines
-get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
 def get_config_setting(setting):

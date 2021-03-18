@@ -20,6 +20,9 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings.
           flake8 . --count --exit-zero --max-complexity=10 --statistics
+      - name: Pytest
+        run: |
+          pytest main/githooks.py
       - run: echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
       - name: Branch name
         run: echo "branch $GITHUB_REF sha $GITHUB_SHA repo $GITHUB_REPOSITORY actor $GITHUB_ACTOR"
