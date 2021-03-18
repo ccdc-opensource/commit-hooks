@@ -139,7 +139,17 @@ def get_commit_files():
 
 def get_changed_lines(modified_file):
     '''New and modified lines in modified file in current commit'''
-    output = _get_output(f'git diff-index HEAD -p --unified=0 {modified_file}')
+    if _is_github_event():
+        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+            output = _get_output(
+                    f'git diff -p --unified=0 HEAD..main {modified_file}')
+        else:
+            output = _get_output(
+                    f'git diff -p --unified=0 HEAD..HEAD~ {modified_file}')
+    else:
+        output = _get_output(
+                f'git diff-index HEAD -p --unified=0 {modified_file}')
+
     lines = []
     for line in output.splitlines():
         if not line.startswith('@@'):
