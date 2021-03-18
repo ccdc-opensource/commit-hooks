@@ -163,10 +163,10 @@ def get_changed_lines(modified_file):
     if _is_github_event():
         if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
             output = _get_output(
-                    f'git diff --unified=0 HEAD..{os.environ["GITHUB_BASE_REF"]} {modified_file}')
+                    f'git diff --unified=0 {os.environ["GITHUB_BASE_REF"]}..{os.environ["GITHUB_HEAD_REF"]} {modified_file}')
         else:
             output = _get_output(
-                    f'git diff --unified=0 HEAD..HEAD~ {modified_file}')
+                    f'git diff --unified=0 HEAD~ {modified_file}')
     else:
         output = _get_output(
                 f'git diff-index HEAD --unified=0 {modified_file}')

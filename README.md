@@ -34,7 +34,7 @@ CCDC coding standard.
 ```
 
 # commit-hooks
-You can use this as git hooks for local repositories.  
+You can use this as git hooks for local repositories.
 
 A set of hooks include:
 * commit-msg
