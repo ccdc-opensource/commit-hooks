@@ -6,10 +6,11 @@ This github action does some checks on changed files.
 
 '''
 
+from pathlib import Path
 import os
 import sys
 
-sys.path.insert(0, './main')
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'main'))
 import githooks
 
 if __name__ == '__main__':
