@@ -1,8 +1,19 @@
-This repository contains files that can be used as local git hooks and a github
-action.
+This repository contains files that can be used as a github action and local
+git hooks.
 
 It does a few checks on source codes to ensure compliance with some general
 CCDC coding standard.
+
+The commit will be flagged if it includes text files with:
+
+* File name that does meet Windows filename requirement
+* CRLF line endings
+* NO NOT MERGE or DO NOT COMMIT
+* Trailing whitespaces
+* Tabs
+* Missing terminating newline for certain files
+* Certain C++ #include patterns and std::exception
+
 
 # Github action
 
