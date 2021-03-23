@@ -17,7 +17,7 @@ import sys
 # Absolute file size limit (in MB) - it's 100MB on github.com
 HARD_SIZE_THRESHOLD = 99.0
 # Internal file size limit (in MB) - allow if commit message includes marker
-SOFT_SIZE_THRESHOLD = 10.0
+SOFT_SIZE_THRESHOLD = 60.0
 # Large file marker in commit message
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # Check file content if it has these extensions
@@ -60,6 +60,13 @@ def _is_github_event():
     return False
 
 
+def _is_pull_request():
+    if os.environ.get('GITHUB_EVENT_NAME', '') == 'pull_request':
+        return True
+    else:
+        return False
+
+
 def _skip(filename, msg):
     print(f'SKIP {filename}: {msg}')
 
@@ -85,7 +92,7 @@ def get_user():
 def get_branch():
     '''Get current branch'''
     if _is_github_event():
-        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+        if _is_pull_request():
             return os.environ['GITHUB_HEAD_REF']
         else:
             return os.environ['GITHUB_REF'].split('/')[-1]
@@ -126,7 +133,7 @@ def get_commit_files():
 
     '''
     if _is_github_event():
-        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+        if _is_pull_request():
             output = _get_output(f'git diff --name-status remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} --')
         else:
             output = _get_output('git diff --name-status HEAD~.. --')
@@ -164,7 +171,7 @@ class TestParseDiffHeaderPattern(unittest.TestCase):
 def get_changed_lines(modified_file):
     '''New and modified lines in modified file in current commit'''
     if _is_github_event():
-        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+        if _is_pull_request():
             output = _get_output(
                     f'git diff --unified=0 remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} -- {modified_file}')
         else:
@@ -245,10 +252,7 @@ def check_do_not_merge_in_file(filename, new_file=False):
             print(f'Error {exc}: {line_num-1} in {filename}')
             continue
         if 'do not merge' in line.lower():
-            _fail(f'Found DO NOT MERGE in "{filename}".\n'
-                  'Run "git merge --abort" to start again, '
-                  f'or remove {filename} from index before completing the '
-                  'merge with "git commit".')
+            _fail(f'Found DO NOT MERGE in "{filename}".')
             return 1
 
     return 0
@@ -465,18 +469,17 @@ def check_username():
 
 def check_file_content(filename, data):
     if 'do not commit' in data.lower():
-        _fail(f'Found DO NOT COMMIT in "{filename}". '
-              'Remove file from index.')
+        _fail(f'Found DO NOT COMMIT in "{filename}".')
         return 1
 
     if '\t' in data:
-        _fail(f'Found tab characters in "{filename}". Replace with spaces.')
+        _fail(f'Found tab characters in "{filename}".')
         return 1
 
     # For file types that need a terminating newline
     if any(map(lambda ext: filename.endswith(ext), TERMINATING_NEWLINE_EXTS)):
         if not data.endswith('\n'):
-            _fail(f'Missing terminating newline in {filename}')
+            _fail(f'Missing terminating newline in {filename}.')
             return 1
 
     # NOTE: Not checking eol
@@ -487,10 +490,10 @@ def check_file_content(filename, data):
         for line in data.splitlines():
             num += 1
             if cpp_include_backslash_pattern.search(line):
-                _fail(f'{filename}:{num} - Backslash in #include')
+                _fail(f'{filename}:{num} - Backslash in #include.')
                 return 1
             if cpp_throw_std_exception_pattern.search(line):
-                _fail(f'{filename}:{num} - std::exception thrown')
+                _fail(f'{filename}:{num} - std::exception thrown.')
                 return 1
 
     return 0
@@ -661,14 +664,11 @@ def check_commit_msg(message, files):
     for filename in files:
         size = Path(filename).stat().st_size / 1024**2
         if size > HARD_SIZE_THRESHOLD:
-            _fail(f'{filename} is larger than the github limit. '
-                  'Remove file from index.')
+            _fail(f'{filename} is larger than the github limit.')
             return 1
         elif size > SOFT_SIZE_THRESHOLD:
             if LARGE_FILE_MARKER not in message:
-                _fail(f'{filename} is larger than {SOFT_SIZE_THRESHOLD} MB.'
-                      f' Add "{LARGE_FILE_MARKER}" to commit message, '
-                      'or remove file from index.')
+                _fail(f'{filename} is larger than {SOFT_SIZE_THRESHOLD}MB.')
                 return 1
 
     return 0
