@@ -186,6 +186,7 @@ def get_changed_lines(modified_file):
         if not line.startswith('@@'):
             continue
         lines.extend(parse_diff_header(line))
+    print(lines)
     return lines
 
 
