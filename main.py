@@ -22,6 +22,8 @@ if __name__ == '__main__':
     #        if k.startswith('GITHUB_'):
     #            print(f'{k}: {v}')
 
+    print(githooks.get_commit_files())
+
     files = os.environ.get('INPUT_FILES', '')
     new_files = bool(int(os.environ.get('INPUT_NEW_FILES', 0)))
 

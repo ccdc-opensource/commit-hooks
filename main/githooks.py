@@ -128,7 +128,13 @@ def get_commit_files():
         'A': <list of new files>
 
     '''
-    output = _get_output('git diff-index HEAD --cached')
+    if _is_github_event():
+        if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
+            output = _get_output(f'git diff --name-status {os.environ["GITHUB_HEAD_REF"]}')
+        else:
+            output = _get_output('git diff --name-status HEAD~')
+    else:
+        output = _get_output('git diff-index HEAD --cached')
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
