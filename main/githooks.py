@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 '''
-This is a git hook migrated from hg.
-
-Reference:
-https://confluence.ccdc.cam.ac.uk/pages/viewpage.action?spaceKey=GIT&title=Hooks
+Module for a git hook.
 
 '''
 
 from collections import defaultdict
 from pathlib import Path
+import os
 import platform
 import re
 import subprocess
@@ -19,7 +17,7 @@ import sys
 # Absolute file size limit (in MB) - it's 100MB on github.com
 HARD_SIZE_THRESHOLD = 99.0
 # Internal file size limit (in MB) - allow if commit message includes marker
-SOFT_SIZE_THRESHOLD = 10.0
+SOFT_SIZE_THRESHOLD = 60.0
 # Large file marker in commit message
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # Check file content if it has these extensions
@@ -56,6 +54,23 @@ def _get_output(command, cwd='.'):
     return subprocess.check_output(command, shell=True, cwd=cwd).decode()
 
 
+def _is_github_event():
+    if 'GITHUB_EVENT_NAME' in os.environ:
+        return True
+    return False
+
+
+def _is_pull_request():
+    if os.environ.get('GITHUB_EVENT_NAME', '') == 'pull_request':
+        return True
+    else:
+        return False
+
+
+def _skip(filename, msg):
+    print(f'SKIP {filename}: {msg}')
+
+
 def _fail(msg):
     print(f'COMMIT FAIL: {msg}')
 
@@ -66,14 +81,36 @@ def _is_windows():
 
 def get_user():
     '''Get user making the commit'''
-    output = _get_output('git var GIT_AUTHOR_IDENT')
-    match = re.match(r'^(.+) <', output)
-    return match.group(1)
+    if _is_github_event():
+        return os.environ['GITHUB_ACTOR']
+    else:
+        output = _get_output('git var GIT_AUTHOR_IDENT')
+        match = re.match(r'^(.+) <', output)
+        return match.group(1)
 
 
 def get_branch():
     '''Get current branch'''
-    return _get_output('git branch').split()[-1]
+    if _is_github_event():
+        if _is_pull_request():
+            return os.environ['GITHUB_HEAD_REF']
+        else:
+            return os.environ['GITHUB_REF'].split('/')[-1]
+    else:
+        return _get_output('git branch').split()[-1]
+
+
+def get_sha():
+    '''Get the commit sha'''
+    return _get_output(f'git rev-parse {get_branch()}')
+
+
+def get_event():
+    '''Get the git event'''
+    if _is_github_event():
+        return os.environ['GITHUB_EVENT_NAME']
+    else:
+        return 'commit'
 
 
 def get_branch_files():
@@ -95,7 +132,13 @@ def get_commit_files():
         'A': <list of new files>
 
     '''
-    output = _get_output('git diff-index HEAD --cached')
+    if _is_github_event():
+        if _is_pull_request():
+            output = _get_output(f'git diff --name-status remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} --')
+        else:
+            output = _get_output('git diff --name-status HEAD~.. --')
+    else:
+        output = _get_output('git diff-index HEAD --cached')
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
@@ -104,22 +147,46 @@ def get_commit_files():
     return result
 
 
+def parse_diff_header(header_line):
+    changed_lines = []
+    match = parse_diff_header.pattern.match(header_line)
+    start = int(match.group(1))
+    if match.group(2):
+        for num in range(int(match.group(3))):
+            changed_lines.append(start + num)
+    else:
+        changed_lines.append(start)
+    return changed_lines
+parse_diff_header.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
+
+
+class TestParseDiffHeaderPattern(unittest.TestCase):
+    def test_various_strings(self):
+        def _test(input, output):
+            self.assertListEqual(output, parse_diff_header(input))
+        _test('@@ -142 +178,3 @@', [178, 179, 180])
+        _test('@@ -142 +178,7 @@', [178, 179, 180, 181, 182, 183, 184])
+
+
 def get_changed_lines(modified_file):
     '''New and modified lines in modified file in current commit'''
-    output = _get_output(f'git diff-index HEAD -p --unified=0 {modified_file}')
+    if _is_github_event():
+        if _is_pull_request():
+            output = _get_output(
+                    f'git diff --unified=0 remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} -- {modified_file}')
+        else:
+            output = _get_output(
+                    f'git diff --unified=0 HEAD~ {modified_file}')
+    else:
+        output = _get_output(
+                f'git diff-index HEAD --unified=0 {modified_file}')
+
     lines = []
     for line in output.splitlines():
         if not line.startswith('@@'):
             continue
-        match = get_changed_lines.pattern.match(line)
-        start = int(match.group(1))
-        if match.group(2):
-            for num in range(int(match.group(3))):
-                lines.append(start + num)
-        else:
-            lines.append(start)
+        lines.extend(parse_diff_header(line))
     return lines
-get_changed_lines.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
 
 def get_config_setting(setting):
@@ -185,10 +252,7 @@ def check_do_not_merge_in_file(filename, new_file=False):
             print(f'Error {exc}: {line_num-1} in {filename}')
             continue
         if 'do not merge' in line.lower():
-            _fail(f'Found DO NOT MERGE in "{filename}".\n'
-                  'Run "git merge --abort" to start again, '
-                  f'or remove {filename} from index before completing the '
-                  'merge with "git commit".')
+            _fail(f'Found DO NOT MERGE in "{filename}".')
             return 1
 
     return 0
@@ -208,7 +272,6 @@ def check_do_not_merge(files, new_files=False):
     '''
     retval = 0
     for filename in files:
-        print(f'  Checking file {filename}')
         retval += check_do_not_merge_in_file(filename, new_files)
     return retval
 
@@ -242,7 +305,7 @@ class TestTrailingWhitespacePattern(unittest.TestCase):
         _test(u'abcd\xe9 ', u'abcd\xe9')
 
 
-def trim_trailing_whitespace_in_file(filename, new_file=False):
+def trim_trailing_whitespace_in_file(filename, new_file, in_place):
     '''Remove trailing white spaces in new and modified lines in a filename'''
     try:
         with open(filename, 'rb') as fileobj:
@@ -255,19 +318,23 @@ def trim_trailing_whitespace_in_file(filename, new_file=False):
     else:
         line_nums = get_changed_lines(filename)
 
-    modified_file = False
+    modified_file = False   # if trimming white space in place
+    modified_lines = []     # if flagging instead of trimming in place
 
     for line_num in line_nums:
         try:
             before = lines[line_num-1]
         except IndexError as exc:
-            print(f'Error {exc}: {line_num-1} in {filename}')
+            print(f'Error {exc}: {line_num} in {filename}')
             continue
         after = trim_trailing_whitespace(before)
         if before != after:
-            print(f'   Fixed line {line_num}')
-            modified_file = True
-            lines[line_num-1] = after
+            if in_place:
+                print(f'   Fixed line {line_num}')
+                modified_file = True
+                lines[line_num-1] = after
+            else:
+                modified_lines.append(str(line_num))
 
     if modified_file:
         with open(filename, 'wb') as fileobj:
@@ -275,12 +342,73 @@ def trim_trailing_whitespace_in_file(filename, new_file=False):
             fileobj.write(lines.encode())
         add_file_to_index(filename)
 
+    if modified_lines:
+        _fail(f'Found trailing white space in {filename} at lines: ' +
+              ','.join(modified_lines))
+        return 1
 
-def remove_trailing_white_space(files, new_files=False):
+    return 0
+
+
+def remove_trailing_white_space(files, new_files=False, in_place=True):
     '''Remove trailing white spaces in all new and modified lines'''
+    retval = 0
     for filename in files:
-        print(f'  Checking file {filename}')
-        trim_trailing_whitespace_in_file(filename, new_files)
+        retval += trim_trailing_whitespace_in_file(filename, new_files,
+                                                   in_place)
+    return retval
+
+
+def check_filename(filepath):
+    # We permit repository paths to be up to 50 characters long excluding the
+    # final slash character.
+    # Windows allows paths with up to 259 characters (260 including a
+    # terminating null char)
+    max_subpath_chars = 208
+
+    # It's easy to add files on Linux that will make the repository unusable
+    # on Windows.
+    # Windows filename rules are here:
+    # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
+    # This checks for those cases and stops the commit if found.
+
+    # Filename must not contain these characters
+    ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
+    # These names are reserved on Windows
+    DEVICE_NAMES = frozenset([
+        'con', 'prn', 'aux', 'nul',
+        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+        ])
+
+    filename = Path(filepath).name
+    for ch in filename:
+        if ch in ILLEGAL_CHARS or ord(ch) <= 31:
+            _fail(f'Illegal character "{ch}" in filename "{filename}".')
+            return 1
+
+    if Path(filename).stem in DEVICE_NAMES:
+        _fail(f'Illegal filename "{filename}" - reserved on Windows.\n')
+        return 1
+
+    if filepath[-1] == '.' or filepath[-1].isspace():
+        _fail(f'Illegal file name "{filepath}" - '
+              'names are not permitted to end with "." or whitespace.')
+        return 1
+
+    try:
+        filepath.encode('ascii')
+    except UnicodeDecodeError:
+        _fail(f'Illegal path "{filepath}" - '
+              'only ASCII characters are permitted.')
+        return 1
+
+    if len(filepath) > max_subpath_chars:
+        _fail(f'File path "{filepath}" is too long, it must be '
+              f'{max_subpath_chars} characters or less.')
+        return 1
+
+    return 0
 
 
 def check_filenames(files):
@@ -310,57 +438,10 @@ def check_filenames(files):
                 else:
                     manifest_lower2case[flower] = f
 
-    # We permit repository paths to be up to 50 characters long excluding the
-    # final slash character.
-    # Windows allows paths with up to 259 characters (260 including a
-    # terminating null char)
-    max_subpath_chars = 208
-
-    # It's easy to add files on Linux that will make the repository unusable
-    # on Windows.
-    # Windows filename rules are here:
-    # http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx#naming_conventions
-    # This checks for those cases and stops the commit if found.
-
-    # Filename must not contain these characters
-    ILLEGAL_CHARS = frozenset('\\/:*?"<>|')
-    # These names are reserved on Windows
-    DEVICE_NAMES = frozenset([
-        'con', 'prn', 'aux', 'nul',
-        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
-        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
-        ])
-
+    retval = 0
     for filepath in files:
-        print(f'  Checking file {filepath}')
-        filename = Path(filepath).name
-        for ch in filename:
-            if ch in ILLEGAL_CHARS or ord(ch) <= 31:
-                _fail(f'Illegal character "{ch}" in filename "{filename}".')
-                return 1
-
-        if Path(filename).stem in DEVICE_NAMES:
-            _fail(f'Illegal filename "{filename}" - reserved on Windows.\n')
-            return 1
-
-        if filepath[-1] == '.' or filepath[-1].isspace():
-            _fail(f'Illegal file name "{filepath}" - '
-                  'names are not permitted to end with "." or whitespace.')
-            return 1
-
-        try:
-            filepath.encode('ascii')
-        except UnicodeDecodeError:
-            _fail(f'Illegal path "{filepath}" - '
-                  'only ASCII characters are permitted.')
-            return 1
-
-        if len(filepath) > max_subpath_chars:
-            _fail(f'File path "{filepath}" is too long, it must be '
-                  f'{max_subpath_chars} characters or less.')
-            return 1
-
-    return 0
+        retval += check_filename(filepath)
+    return retval
 
 
 def check_username():
@@ -388,18 +469,17 @@ def check_username():
 
 def check_file_content(filename, data):
     if 'do not commit' in data.lower():
-        _fail(f'Found DO NOT COMMIT in "{filename}". '
-              'Remove file from index.')
+        _fail(f'Found DO NOT COMMIT in "{filename}".')
         return 1
 
     if '\t' in data:
-        _fail(f'Found tab characters in "{filename}". Replace with spaces.')
+        _fail(f'Found tab characters in "{filename}".')
         return 1
 
     # For file types that need a terminating newline
     if any(map(lambda ext: filename.endswith(ext), TERMINATING_NEWLINE_EXTS)):
         if not data.endswith('\n'):
-            _fail(f'Missing terminating newline in {filename}')
+            _fail(f'Missing terminating newline in {filename}.')
             return 1
 
     # NOTE: Not checking eol
@@ -410,10 +490,10 @@ def check_file_content(filename, data):
         for line in data.splitlines():
             num += 1
             if cpp_include_backslash_pattern.search(line):
-                _fail(f'{filename}:{num} - Backslash in #include')
+                _fail(f'{filename}:{num} - Backslash in #include.')
                 return 1
             if cpp_throw_std_exception_pattern.search(line):
-                _fail(f'{filename}:{num} - std::exception thrown')
+                _fail(f'{filename}:{num} - std::exception thrown.')
                 return 1
 
     return 0
@@ -513,6 +593,38 @@ class TestCppThrowStdExceptionPattern(unittest.TestCase):
                 cpp_throw_std_exception_pattern.search('rethrow exception'))
 
 
+def get_file_content(filename):
+    '''Return the content of a file.
+
+    We do so if:
+        1. Filename has certain extensions
+        2. The content can be read
+        3. It's a text file
+
+    Otherwise return None
+    '''
+    # Skip file if extension is not in the checked list
+    if not any([filename.endswith(checked_ext)
+                for checked_ext in CHECKED_EXTS]):
+        _skip(filename, 'File extension is excluded')
+        return
+
+    # NOTE: ignored_patterns not implemented
+
+    try:
+        data = Path(filename).read_text()
+    except Exception as exc:
+        print(f'Error {exc}: reading {filename}')
+        return
+
+    # Skip binary file
+    if '\0' in data:
+        _skip(filename, 'Not a text file')
+        return
+
+    return data
+
+
 def check_content(files):
     '''Check content of files.
 
@@ -533,25 +645,9 @@ def check_content(files):
     retval = 0
 
     for filename in files:
-        # Skip file if extension is not in the checked list
-        if not any([filename.endswith(checked_ext)
-                    for checked_ext in CHECKED_EXTS]):
-            continue
-
-        # NOTE: ignored_patterns not implemented
-
-        try:
-            data = Path(filename).read_text()
-        except Exception as exc:
-            print(f'Error {exc}: reading {filename}')
-            continue
-
-        # Skip binary file
-        if '\0' in data:
-            continue
-
-        print(f'  Checking file {filename}')
-        retval += check_file_content(filename, data)
+        data = get_file_content(filename)
+        if data is not None:
+            retval += check_file_content(filename, data)
 
     return retval
 
@@ -568,14 +664,11 @@ def check_commit_msg(message, files):
     for filename in files:
         size = Path(filename).stat().st_size / 1024**2
         if size > HARD_SIZE_THRESHOLD:
-            _fail(f'{filename} is larger than the github limit. '
-                  'Remove file from index.')
+            _fail(f'{filename} is larger than the github limit.')
             return 1
         elif size > SOFT_SIZE_THRESHOLD:
             if LARGE_FILE_MARKER not in message:
-                _fail(f'{filename} is larger than {SOFT_SIZE_THRESHOLD} MB.'
-                      f' Add "{LARGE_FILE_MARKER}" to commit message, '
-                      'or remove file from index.')
+                _fail(f'{filename} is larger than {SOFT_SIZE_THRESHOLD}MB.')
                 return 1
 
     return 0
