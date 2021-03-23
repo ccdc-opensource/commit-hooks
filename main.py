@@ -18,9 +18,9 @@ if __name__ == '__main__':
     print(f'Checking {githooks.get_event()} commit {githooks.get_sha()} '
           f'by {githooks.get_user()} in {githooks.get_branch()}')
 
-        for k,v in os.environ.items():
-            if k.startswith('GITHUB_'):
-                print(f'{k}: {v}')
+    for k,v in os.environ.items():
+        if k.startswith('GITHUB_'):
+            print(f'{k}: {v}')
 
     print(githooks.get_commit_files())
 
