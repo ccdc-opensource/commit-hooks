@@ -9,28 +9,17 @@ CCDC coding standard.
 ## Usage
 ```yaml
 - uses: ccdc-opensource/commit-hooks@v1
-  with:
-    # Comma separated list of files
-    # Default: ''
-    files: ''
-
-    # Whether the list of files are new files (1) or modified files (0)
-    # Default: 0
-    new_files: ''
 ```
 
 ## Scenarios
-### Check all modified files
+### Check files
 ```yaml
-      - id: files
-        uses: jitterbit/get-changed-files@v1
+      - uses: actions/checkout@v2
         with:
-          format: 'csv'
-      - id: check_modified_files
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - id: check_files
         uses: ccdc-opensource/commit-hooks@v1
-        with:
-          files: ${{ steps.files.outputs.modified }}
-          new_files: 0
 ```
 
 # commit-hooks

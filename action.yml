@@ -4,15 +4,6 @@ description: Check changed files for compliance
 runs:
   using: "docker"
   image: "Dockerfile"
-inputs:
-  files:
-    description: The list of files
-    required: true
-    default: ''
-  new_files:
-    description: 1 if the files are new and 0 if the files are modified
-    required: true
-    default: 0
 branding:
   icon: 'check-square'
   color: 'green'

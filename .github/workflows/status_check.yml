@@ -29,17 +29,14 @@ jobs:
           pytest main/githooks.py
       - run: echo $(git --version)
       - run: echo $(git branch -al)
-      - id: files
-        uses: jitterbit/get-changed-files@v1
-        with:
-          format: 'csv'
-      - id: dog_food_new_files
+        #      - id: files
+        #        uses: jitterbit/get-changed-files@v1
+        #        with:
+        #          format: 'csv'
+        #      - id: dog_food_new_files
+        #        uses: ccdc-opensource/commit-hooks@precommit_action
+        #        with:
+        #          files: ${{ steps.files.outputs.added }}
+        #          new_files: 1
+      - id: dog_food_check
         uses: ccdc-opensource/commit-hooks@precommit_action
-        with:
-          files: ${{ steps.files.outputs.added }}
-          new_files: 1
-      - id: dog_food_modified_files
-        uses: ccdc-opensource/commit-hooks@precommit_action
-        with:
-          files: ${{ steps.files.outputs.modified }}
-          new_files: 0
