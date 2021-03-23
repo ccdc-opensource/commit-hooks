@@ -130,8 +130,8 @@ def get_commit_files():
     '''
     if _is_github_event():
         if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
-            print(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]}..{os.environ["GITHUB_HEAD_REF"]}')
-            output = _get_output(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]}..{os.environ["GITHUB_HEAD_REF"]}')
+            print(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]} --')
+            output = _get_output(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]} --')
         else:
             output = _get_output('git diff --name-status HEAD~')
     else:
