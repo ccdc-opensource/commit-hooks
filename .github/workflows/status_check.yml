@@ -28,6 +28,7 @@ jobs:
         run: |
           pytest main/githooks.py
       - run: echo $(git --version)
+      - run: echo $(git branch -av)
       - run: echo $(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
       - name: Branch name
         run: echo "branch $GITHUB_REF sha $GITHUB_SHA repo $GITHUB_REPOSITORY actor $GITHUB_ACTOR"
