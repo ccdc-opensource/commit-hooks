@@ -96,7 +96,7 @@ def get_branch():
 def get_sha():
     '''Get the commit sha'''
     if _is_github_event():
-        return os.environ['GITHUB_SHA']
+        _get_output(f'git rev-parse {get_branch()}')
     else:
         return ''
 
