@@ -18,9 +18,9 @@ if __name__ == '__main__':
 
     files = githooks.get_commit_files()
     print(f'Checking {githooks.get_event()} modified files:')
-    print('  ' + '\n'.join(files['M'])
+    print('  ' + '\n'.join(files['M']))
     print(f'Checking {githooks.get_event()} new files:')
-    print('  ' + '\n'.join(files['A'])
+    print('  ' + '\n'.join(files['A']))
 
     retval = 0
 
