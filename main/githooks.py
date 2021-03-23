@@ -343,7 +343,7 @@ def trim_trailing_whitespace_in_file(filename, new_file, in_place):
         add_file_to_index(filename)
 
     if modified_lines:
-        _fail(f'Found trailing white space in {filename} at lines: '
+        _fail(f'Found trailing white space in {filename} at lines: ' +
               ','.join(modified_lines))
         return 1
 
