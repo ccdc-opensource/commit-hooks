@@ -268,7 +268,6 @@ def check_do_not_merge(files, new_files=False):
     '''
     retval = 0
     for filename in files:
-        print(f'  Checking file {filename}')
         retval += check_do_not_merge_in_file(filename, new_files)
     return retval
 
@@ -351,7 +350,6 @@ def remove_trailing_white_space(files, new_files=False, in_place=True):
     '''Remove trailing white spaces in all new and modified lines'''
     retval = 0
     for filename in files:
-        print(f'  Checking file {filename}')
         retval += trim_trailing_whitespace_in_file(filename, new_files,
                                                    in_place)
     return retval
@@ -379,7 +377,6 @@ def check_filename(filepath):
         'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
         ])
 
-    print(f'  Checking file {filepath}')
     filename = Path(filepath).name
     for ch in filename:
         if ch in ILLEGAL_CHARS or ord(ch) <= 31:
@@ -646,7 +643,6 @@ def check_content(files):
 
     for filename in files:
         data = get_file_content(filename)
-        print(f'  Checking file {filename}')
         if data is not None:
             retval += check_file_content(filename, data)
 

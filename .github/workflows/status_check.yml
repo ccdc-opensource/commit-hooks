@@ -8,9 +8,6 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Git
-        run: |
-          git status
       - uses: actions/setup-python@v2
         with:
           python-version: "3.7"
@@ -27,16 +24,5 @@ jobs:
       - name: Pytest
         run: |
           pytest main/githooks.py
-      - run: echo $(git --version)
-      - run: echo $(git branch -al)
-        #      - id: files
-        #        uses: jitterbit/get-changed-files@v1
-        #        with:
-        #          format: 'csv'
-        #      - id: dog_food_new_files
-        #        uses: ccdc-opensource/commit-hooks@precommit_action
-        #        with:
-        #          files: ${{ steps.files.outputs.added }}
-        #          new_files: 1
       - id: dog_food_check
         uses: ccdc-opensource/commit-hooks@precommit_action
