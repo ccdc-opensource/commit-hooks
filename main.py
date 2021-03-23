@@ -36,12 +36,12 @@ if __name__ == '__main__':
     #        if data is not None:
     #            retval += githooks.check_file_content(filepath, data)
 
-    retval += remove_trailing_white_space(files['M'], in_place=False)
-    retval += remove_trailing_white_space(files['A'], new_files=True, in_place=False)
-    retval += check_do_not_merge(files['M'])
-    retval += check_do_not_merge(files['A'], new_files=True)
-    retval += check_filenames(files['M'] + files['A'])
-    retval += check_eol(files['M'] + files['A'])
-    retval += check_content(files['M'] + files['A'])
+    retval += githooks.remove_trailing_white_space(files['M'], in_place=False)
+    retval += githooks.remove_trailing_white_space(files['A'], new_files=True, in_place=False)
+    retval += githooks.check_do_not_merge(files['M'])
+    retval += githooks.check_do_not_merge(files['A'], new_files=True)
+    retval += githooks.check_filenames(files['M'] + files['A'])
+    retval += githooks.check_eol(files['M'] + files['A'])
+    retval += githooks.check_content(files['M'] + files['A'])
 
     sys.exit(retval)
