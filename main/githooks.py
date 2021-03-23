@@ -127,10 +127,10 @@ def get_commit_files():
     '''
     if _is_github_event():
         if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
-            print(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]} --')
-            output = _get_output(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]} --')
+            print(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]}.. --')
+            output = _get_output(f'git diff --name-status {os.environ["GITHUB_BASE_REF"]}.. --')
         else:
-            output = _get_output('git diff --name-status HEAD~')
+            output = _get_output('git diff --name-status HEAD~.. --')
     else:
         output = _get_output('git diff-index HEAD --cached')
     result = defaultdict(list)
@@ -167,7 +167,7 @@ def get_changed_lines(modified_file):
     if _is_github_event():
         if os.environ['GITHUB_EVENT_NAME'] == 'pull_request':
             output = _get_output(
-                    f'git diff --unified=0 {os.environ["GITHUB_HEAD_REF"]} -- {modified_file}')
+                    f'git diff --unified=0 {os.environ["GITHUB_BASE_REF"]}.. -- {modified_file}')
         else:
             output = _get_output(
                     f'git diff --unified=0 HEAD~ {modified_file}')
