@@ -2,10 +2,7 @@ name: Run precommit checks on self
 on: pull_request
 jobs:
   precommit-check:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
