@@ -306,7 +306,17 @@ class TestTrailingWhitespacePattern(unittest.TestCase):
 
 
 def trim_trailing_whitespace_in_file(filename, new_file, in_place):
-    '''Remove trailing white spaces in new and modified lines in a filename'''
+    '''Remove trailing white spaces in new and modified lines in a filename
+
+    :param filename: The file to check
+    :param new_file: True if whole file is new; False if it's an existing
+        file that's been modified
+    :param in_place: True if trailing whitespace is to be removed from file in
+        place; False if a value is to be returned to indicate if trailing
+        whitespace is found, instead of updating the file in place.
+    :returns: If in_place=False, 0 if no trailing whitespace is found, 1 if
+        trailing whitepsace is found.
+    '''
     try:
         with open(filename, 'rb') as fileobj:
             lines = fileobj.read().decode().splitlines(True)
@@ -348,6 +358,27 @@ def trim_trailing_whitespace_in_file(filename, new_file, in_place):
         return 1
 
     return 0
+
+
+class TestTrimTrailingWhitespace(unittest.TestCase):
+    def test_trim_trailing_whitespace(self):
+        test_file = Path.cwd() / 'tttw_testfile.txt'
+        content = 'first line\nsecond line \nthird line '
+        trimmed_content = 'first line\nsecond line\nthird line'
+        test_file.write_text(content)
+
+        # Trailing whitespace found
+        retval = trim_trailing_whitespace_in_file(test_file, True, False)
+        self.assertEqual(retval, 1)
+        self.assertEqual(test_file.read_text(), content)
+
+        # Now remove the trailing whitespace
+        trim_trailing_whitespace_in_file(test_file, True, True)
+        # Trailing whitespace no longer found
+        self.assertEqual(test_file.read_text(), trimmed_content)
+        retval = trim_trailing_whitespace_in_file(test_file, True, False)
+        self.assertEqual(retval, 0)
+        test_file.unlink()
 
 
 def remove_trailing_white_space(files, new_files=False, in_place=True):
@@ -398,7 +429,7 @@ def check_filename(filepath):
 
     try:
         filepath.encode('ascii')
-    except UnicodeDecodeError:
+    except UnicodeEncodeError:
         _fail(f'Illegal path "{filepath}" - '
               'only ASCII characters are permitted.')
         return 1
@@ -409,6 +440,20 @@ def check_filename(filepath):
         return 1
 
     return 0
+
+
+class TestCheckFileName(unittest.TestCase):
+    def test_various_strings(self):
+        def _test(input, output):
+            self.assertEqual(output, check_filename(input))
+        _test('good/some.txt', 0)
+        _test('bad/illegal/star*star.txt', 1)
+        _test('bad/reserved/device/con.txt', 1)
+        _test('bad/end/period.txt.', 1)
+        _test('bad/end/space.txt ', 1)
+        _test('bad/ascii/你好.txt', 1)
+        _test('long/path/'*20 + 'l208.txt', 0)
+        _test('long/path/'*20 + 'll209.txt', 1)
 
 
 def check_filenames(files):
