@@ -1,7 +1,7 @@
 name: Quality check on commit hooks code
 on: [push, pull_request]
 jobs:
-  Pull-request-check:
+  quality-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
