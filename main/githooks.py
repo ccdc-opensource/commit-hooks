@@ -148,14 +148,20 @@ def get_commit_files():
 
 
 def parse_diff_header(header_line):
-    changed_lines = []
+    '''Parse "git diff --unified=0" header lines to get changed line numbers
+
+    The line number is in relation to the file after the change.
+
+    :param header_line: A header in the git diff --unified=0 output
+    :returns: a string that represents either a line number or a range
+    '''
     match = parse_diff_header.pattern.match(header_line)
     start = int(match.group(1))
     if match.group(2):
-        for num in range(int(match.group(3))):
-            changed_lines.append(start + num)
+        num = int(match.group(3))
+        changed_lines = f'{start}-{start+num-1}'
     else:
-        changed_lines.append(start)
+        changed_lines = str(start)
     return changed_lines
 parse_diff_header.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 
@@ -163,13 +169,28 @@ parse_diff_header.pattern = re.compile(r'^@@\s[^\s]+\s\+?(\d+)(,(\d+))?\s@@.*')
 class TestParseDiffHeaderPattern(unittest.TestCase):
     def test_various_strings(self):
         def _test(input, output):
-            self.assertListEqual(output, parse_diff_header(input))
-        _test('@@ -142 +178,3 @@', [178, 179, 180])
-        _test('@@ -142 +178,7 @@', [178, 179, 180, 181, 182, 183, 184])
+            self.assertEqual(output, parse_diff_header(input))
+        _test('@@ -142 +178 @@', '178')
+        _test('@@ -142 +178,3 @@', '178-180')
+        _test('@@ -142 +178,7 @@', '178-184')
 
 
 def get_changed_lines(modified_file):
-    '''New and modified lines in modified file in current commit'''
+    '''New and modified lines in modified file in current commit
+
+    Depending on the context, the change is defined as (old -> new):
+
+        pull request:   BASE -> HEAD    (ie. main -> feature_branch)
+        push:           HEAD~ -> HEAD   (ie. previous commit -> current commit)
+        precommit:      HEAD -> index   (ie. current commit -> new commit)
+
+    The returned list contains line numbers of lines that have changed. The
+    list can contain ranges. For example ['3','6-9','12'] means lines
+    3,6,7,8,9,12.
+
+    :param modified_file: The file which has changed
+    :returns: A list of line number (integers and ranges) of changed lines
+    '''
     if _is_github_event():
         if _is_pull_request():
             output = _get_output(
@@ -185,8 +206,28 @@ def get_changed_lines(modified_file):
     for line in output.splitlines():
         if not line.startswith('@@'):
             continue
-        lines.extend(parse_diff_header(line))
+        lines.append(parse_diff_header(line))
     return lines
+
+
+def yield_changed_lines(changed_lines):
+    '''Yield individual line numbers from list returned by get_changed_lines'''
+    for line_num_range in changed_lines:
+        if '-' in line_num_range:
+            start, end = map(int, line_num_range.split('-'))
+        else:
+            start, end = int(line_num_range), int(line_num_range)
+        for line_num in range(start, end+1):
+            yield line_num
+
+
+class TestYieldChangedLines(unittest.TestCase):
+    def test_various_lists(self):
+        def _test(input, output):
+            self.assertListEqual(output, list(yield_changed_lines(input)))
+        _test(['12'], [12])
+        _test(['12-15'], [12,13,14,15])
+        _test(['12-15','44','55-57'], [12,13,14,15,44,55,56,57])
 
 
 def get_config_setting(setting):
@@ -241,11 +282,11 @@ def check_do_not_merge_in_file(filename, new_file=False):
         lines = fileobj.read().decode().splitlines(True)
 
     if new_file:
-        line_nums = range(1, len(lines)+1)
+        line_nums = [f'1-{len(lines)}']
     else:
         line_nums = get_changed_lines(filename)
 
-    for line_num in line_nums:
+    for line_num in yield_changed_lines(line_nums):
         try:
             line = lines[line_num-1]
         except IndexError as exc:
@@ -324,14 +365,14 @@ def trim_trailing_whitespace_in_file(filename, new_file, in_place):
         return
 
     if new_file:
-        line_nums = range(1, len(lines)+1)
+        line_nums = [f'1-{len(lines)}']
     else:
         line_nums = get_changed_lines(filename)
 
     modified_file = False   # if trimming white space in place
     modified_lines = []     # if flagging instead of trimming in place
 
-    for line_num in line_nums:
+    for line_num in yield_changed_lines(line_nums):
         try:
             before = lines[line_num-1]
         except IndexError as exc:
