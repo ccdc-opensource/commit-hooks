@@ -4,12 +4,12 @@ git hooks.
 It does a few checks on source codes to ensure compliance with some general
 CCDC coding standard.
 
-The commit will be flagged if it includes text files with:
+The commit will be flagged if it includes certain text files with:
 
-* File name that does meet Windows filename requirement
+* File name that can cause errors on Windows
 * CRLF line endings
 * NO NOT MERGE or DO NOT COMMIT
-* Trailing whitespaces
+* Trailing whitespace
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
@@ -23,14 +23,21 @@ The commit will be flagged if it includes text files with:
 ```
 
 ## Scenarios
-### Check files
+### Check files in pull request for merge to main
 ```yaml
+name: Check pull request files
+on:
+  pull_request
+    branches: [ main ]
+jobs:
+  Pull-request-files-check:
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v2
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - id: check_files
-        uses: ccdc-opensource/commit-hooks@v1
+      - uses: ccdc-opensource/commit-hooks@v1
 ```
 
 # commit-hooks
