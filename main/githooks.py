@@ -6,6 +6,7 @@ Module for a git hook.
 
 from collections import defaultdict
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 import os
 import platform
 import re
@@ -346,16 +347,19 @@ class TestTrailingWhitespacePattern(unittest.TestCase):
         _test(u'abcd\xe9 ', u'abcd\xe9')
 
 
-def trim_trailing_whitespace_in_file(filename, new_file, in_place):
+def trim_trailing_whitespace_in_file(filename, new_file, dry_run,
+                                     add_to_git_index=True):
     '''Remove trailing white spaces in new and modified lines in a filename
 
     :param filename: The file to check
     :param new_file: True if whole file is new; False if it's an existing
         file that's been modified
-    :param in_place: True if trailing whitespace is to be removed from file in
-        place; False if a value is to be returned to indicate if trailing
-        whitespace is found, instead of updating the file in place.
-    :returns: If in_place=False, 0 if no trailing whitespace is found, 1 if
+    :param dry_run: True if we don't want to actually update the file - just
+        return a value to indicate if trailing whitespace is found or not;
+        False if the file is to be updated if trailing whitespace is found
+    :param add_to_git_index: If dry_run=False, set to False if we don't want to
+        automatically add the new file to git index should it be updated
+    :returns: If dry_run=True, 0 if no trailing whitespace is found, 1 if
         trailing whitepsace is found.
     '''
     try:
@@ -380,18 +384,19 @@ def trim_trailing_whitespace_in_file(filename, new_file, in_place):
             continue
         after = trim_trailing_whitespace(before)
         if before != after:
-            if in_place:
+            if dry_run:
+                modified_lines.append(str(line_num))
+            else:
                 print(f'   Fixed line {line_num}')
                 modified_file = True
                 lines[line_num-1] = after
-            else:
-                modified_lines.append(str(line_num))
 
     if modified_file:
         with open(filename, 'wb') as fileobj:
             lines = ''.join(lines)
             fileobj.write(lines.encode())
-        add_file_to_index(filename)
+        if add_to_git_index:
+            add_file_to_index(filename)
 
     if modified_lines:
         _fail(f'Found trailing white space in {filename} at lines: ' +
@@ -403,31 +408,34 @@ def trim_trailing_whitespace_in_file(filename, new_file, in_place):
 
 class TestTrimTrailingWhitespace(unittest.TestCase):
     def test_trim_trailing_whitespace(self):
-        test_file = Path.cwd() / 'tttw_testfile.txt'
         content = 'first line\nsecond line \nthird line '
         trimmed_content = 'first line\nsecond line\nthird line'
-        test_file.write_text(content)
+        with NamedTemporaryFile() as tmp:
+            Path(tmp.name).write_text(content)
 
-        # Trailing whitespace found
-        retval = trim_trailing_whitespace_in_file(test_file, True, False)
-        self.assertEqual(retval, 1)
-        self.assertEqual(test_file.read_text(), content)
+            # Trailing whitespace found
+            retval = trim_trailing_whitespace_in_file(tmp.name, True, True)
+            self.assertEqual(retval, 1)
+            self.assertEqual(Path(tmp.name).read_text(), content)
 
-        # Now remove the trailing whitespace
-        trim_trailing_whitespace_in_file(test_file, True, True)
-        # Trailing whitespace no longer found
-        self.assertEqual(test_file.read_text(), trimmed_content)
-        retval = trim_trailing_whitespace_in_file(test_file, True, False)
-        self.assertEqual(retval, 0)
-        test_file.unlink()
+            # Now remove the trailing whitespace
+            trim_trailing_whitespace_in_file(tmp.name, True, False, False)
+            # Trailing whitespace no longer found
+            self.assertEqual(Path(tmp.name).read_text(), trimmed_content)
+            retval = trim_trailing_whitespace_in_file(tmp.name, True, True)
+            self.assertEqual(retval, 0)
 
 
-def remove_trailing_white_space(files, new_files=False, in_place=True):
-    '''Remove trailing white spaces in all new and modified lines'''
+def remove_trailing_white_space(files, new_files=False, dry_run=False):
+    '''Remove trailing white spaces in all new and modified lines
+
+    Set dry_run to True if you just want to check if trailing whitespace exists
+    in the file instead of actually updating the file.
+    '''
     retval = 0
     for filename in files:
         retval += trim_trailing_whitespace_in_file(filename, new_files,
-                                                   in_place)
+                                                   dry_run)
     return retval
 
 
