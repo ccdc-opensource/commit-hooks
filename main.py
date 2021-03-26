@@ -28,9 +28,9 @@ if __name__ == '__main__':
         retval += githooks.check_do_not_merge(files['M'])
         retval += githooks.check_do_not_merge(files['A'], new_files=True)
 
-    retval += githooks.remove_trailing_white_space(files['M'], in_place=False)
+    retval += githooks.remove_trailing_white_space(files['M'], dry_run=True)
     retval += githooks.remove_trailing_white_space(files['A'], new_files=True,
-                                                   in_place=False)
+                                                   dry_run=True)
     retval += githooks.check_filenames(files['M'] + files['A'])
     retval += githooks.check_eol(files['M'] + files['A'])
     retval += githooks.check_content(files['M'] + files['A'])
