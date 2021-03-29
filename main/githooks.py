@@ -569,10 +569,6 @@ def check_username():
 
 
 def check_file_content(filename, data):
-    if 'do not commit' in data.lower():
-        _fail(f'Found DO NOT COMMIT in "{filename}".')
-        return 1
-
     if '\t' in data:
         _fail(f'Found tab characters in "{filename}".')
         return 1
