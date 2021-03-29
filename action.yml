@@ -4,7 +4,7 @@ description: Check changed files for compliance
 runs:
   using: "composite"
   steps:
-    - run: python3 ${{ github.action_path }}/main.py
+    - run: python3 $GITHUB_ACTION_PATH/main.py
       shell: bash
 branding:
   icon: 'check-square'
