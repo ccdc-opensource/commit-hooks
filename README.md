@@ -31,10 +31,7 @@ on:
     branches: [ main ]
 jobs:
   Pull-request-files-check:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
