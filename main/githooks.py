@@ -18,7 +18,7 @@ import sys
 # Absolute file size limit (in MB) - it's 100MB on github.com
 HARD_SIZE_THRESHOLD = 99.0
 # Internal file size limit (in MB) - allow if commit message includes marker
-SOFT_SIZE_THRESHOLD = 60.0
+SOFT_SIZE_THRESHOLD = 5.0
 # Large file marker in commit message
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # Check file content if it has these extensions
