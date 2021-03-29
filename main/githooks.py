@@ -18,7 +18,7 @@ import sys
 # Absolute file size limit (in MB) - it's 100MB on github.com
 HARD_SIZE_THRESHOLD = 99.0
 # Internal file size limit (in MB) - allow if commit message includes marker
-SOFT_SIZE_THRESHOLD = 60.0
+SOFT_SIZE_THRESHOLD = 5.0
 # Large file marker in commit message
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # Check file content if it has these extensions
@@ -102,7 +102,14 @@ def get_branch():
 
 
 def get_sha():
-    '''Get the commit sha'''
+    '''Get the commit sha
+
+    The sha of the branch we are interested in, ie. the tip of the branch that
+    is pushed or to be merged to main.
+
+    GITHUB_SHA cannot be used because in a pull request it gives the sha of the
+    fake merge commit.
+    '''
     return _get_output(f'git rev-parse {get_branch()}')
 
 

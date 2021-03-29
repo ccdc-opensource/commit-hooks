@@ -1,7 +1,7 @@
 This repository contains files that can be used as a github action and local
 git hooks.
 
-It does a few checks on source codes to ensure compliance with some general
+It does a few checks on source code to ensure compliance with some general
 CCDC coding standard.
 
 The commit will be flagged if it includes certain text files with:
@@ -31,13 +31,19 @@ on:
     branches: [ main ]
 jobs:
   Pull-request-files-check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v2
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - uses: ccdc-opensource/commit-hooks@v1
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - uses: ccdc-opensource/commit-hooks@v2
 ```
 
 # commit-hooks
