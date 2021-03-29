@@ -102,7 +102,14 @@ def get_branch():
 
 
 def get_sha():
-    '''Get the commit sha'''
+    '''Get the commit sha
+
+    The sha of the branch we are interested in, ie. the tip of the branch that
+    is pushed or to be merged to main.
+
+    GITHUB_SHA cannot be used because in a pull request it gives the sha of the
+    fake merge commit.
+    '''
     return _get_output(f'git rev-parse {get_branch()}')
 
 

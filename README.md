@@ -1,7 +1,7 @@
 This repository contains files that can be used as a github action and local
 git hooks.
 
-It does a few checks on source codes to ensure compliance with some general
+It does a few checks on source code to ensure compliance with some general
 CCDC coding standard.
 
 The commit will be flagged if it includes certain text files with:

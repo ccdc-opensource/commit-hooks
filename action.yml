@@ -2,8 +2,9 @@ name: CCDC File Checks
 author: CCDC
 description: Check changed files for compliance
 runs:
-  using: "docker"
-  image: "Dockerfile"
+  using: "composite"
+  steps:
+    - run: python main.py
 branding:
   icon: 'check-square'
   color: 'green'
