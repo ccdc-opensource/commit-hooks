@@ -15,9 +15,6 @@ import githooks
 
 if __name__ == '__main__':
 
-    for key in sorted(os.environ.keys()):
-        print(f'{key}: {os.environ[key]}')
-
     message = os.getenv('INPUT_COMMITMESSAGE')
     print(f'Commit message: {message}')
 

@@ -19,7 +19,9 @@ The commit will be flagged if it includes certain text files with:
 
 ## Usage
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v1
+- uses: ccdc-opensource/commit-hooks@v3
+  with:
+    commitMessage: 'The commit message'
 ```
 
 ## Scenarios
@@ -40,7 +42,12 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: "3.7"
-      - uses: ccdc-opensource/commit-hooks@v2
+      - name: Get the commit message
+        run: |
+          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
+      - uses: ccdc-opensource/commit-hooks@v3
+        with:
+          commitMessage: ${{ env.commit_message }}
 ```
 
 # commit-hooks
