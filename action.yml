@@ -4,8 +4,12 @@ description: Check changed files for compliance
 runs:
   using: "composite"
   steps:
-    - run: python3 $GITHUB_ACTION_PATH/main.py ${{ github.event.head_commit.message }}
+    - run: python3 $GITHUB_ACTION_PATH/main.py
       shell: bash
+inputs:
+  commit-message:
+    description: 'The commit message'
+    required: true
 branding:
   icon: 'check-square'
   color: 'green'
