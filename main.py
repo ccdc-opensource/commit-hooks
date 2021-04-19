@@ -15,15 +15,10 @@ import githooks
 
 if __name__ == '__main__':
 
-    for k,v in os.environ.items():
-        if k.startswith('INPUT_'):
-            print(k, v)
-
-    message = ''
+    message = os.environ['INPUT_COMMITMESSAGE']
     print(f'Commit message: {message}')
 
     print(f'Checking commit {githooks.get_sha()} by {githooks.get_user()} in {githooks.get_branch()}')
-
 
     files = githooks.get_commit_files()
     print(f'Checking {githooks.get_event()} modified files:')

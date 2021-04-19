@@ -16,4 +16,4 @@ jobs:
           python-version: "3.7"
       - uses: ccdc-opensource/commit-hooks@jira_bld_5704_jira_id_in_commit_message
         with:
-          commit-message: ${{ github.event.head_commit.message }}
+          commitMessage: ${{ github.event.head_commit.message }}

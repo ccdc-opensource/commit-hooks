@@ -7,7 +7,7 @@ runs:
     - run: python3 $GITHUB_ACTION_PATH/main.py
       shell: bash
 inputs:
-  commit-message:
+  commitMessage:
     description: 'The commit message'
     required: true
 branding:
