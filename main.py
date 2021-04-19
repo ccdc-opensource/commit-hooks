@@ -6,6 +6,7 @@ This github action does some checks on changed files.
 
 '''
 
+import os
 from pathlib import Path
 import sys
 
@@ -14,7 +15,11 @@ import githooks
 
 if __name__ == '__main__':
 
-    message = sys.argv[1]
+    for k,v in os.environ.items():
+        if k.startswith('INPUT_'):
+            print(k, v)
+
+    message = ''
     print(f'Commit message: {message}')
 
     print(f'Checking commit {githooks.get_sha()} by {githooks.get_user()} in {githooks.get_branch()}')
