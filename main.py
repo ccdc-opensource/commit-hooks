@@ -15,7 +15,10 @@ import githooks
 
 if __name__ == '__main__':
 
-    message = os.environ['INPUT_COMMITMESSAGE']
+    for key in sorted(os.environ.keys()):
+        print(f'{key}: {os.environ[key]}')
+
+    message = os.getenv('INPUT_COMMITMESSAGE')
     print(f'Commit message: {message}')
 
     print(f'Checking commit {githooks.get_sha()} by {githooks.get_user()} in {githooks.get_branch()}')
