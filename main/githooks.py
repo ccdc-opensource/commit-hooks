@@ -21,6 +21,8 @@ HARD_SIZE_THRESHOLD = 99.0
 SOFT_SIZE_THRESHOLD = 5.0
 # Large file marker in commit message
 LARGE_FILE_MARKER = 'LARGE_FILE'
+# No jira marker in commit message
+NO_JIRA_MARKER = 'NO_JIRA'
 # Check file content if it has these extensions
 CHECKED_EXTS = [
         '.bat',
@@ -762,6 +764,12 @@ def check_commit_msg(message, files):
     does not contain required marker.
 
     '''
+    if NO_JIRA_MARKER not in message:
+        if jira_id_pattern.search(message) is None:
+            _fail('Every commit should contain a Jira issue ID or the text '
+                  f'{NO_JIRA_MARKER}')
+            return 1
+
     for filename in files:
         size = Path(filename).stat().st_size / 1024**2
         if size > HARD_SIZE_THRESHOLD:
@@ -773,6 +781,24 @@ def check_commit_msg(message, files):
                 return 1
 
     return 0
+jira_id_pattern = re.compile(r'\b[A-Z]{2,5}-[0-9]{1,4}\b')
+
+
+class TestJiraIDPattern(unittest.TestCase):
+    def test_various_strings(self):
+        def _test(input, is_jira=True):
+            m = jira_id_pattern.search(input)
+            self.assertEqual(bool(m), is_jira)
+        _test('BLD-5704')
+        _test("BLD-1234 fixed some builds")
+        _test("fixed some builds BLD-1234 ")
+        _test("fixed some builds (Jira BLD-1234)")
+        _test("fixed some builds\n some more text BLD-1234")
+        _test('lower-1234', False)
+        _test('A-1234', False)
+        _test('ABCDEF-1234', False)
+        _test('BLD-12345', False)
+        _test('wordBLD-1234word', False)
 
 
 def commit_hook(merge=False):
