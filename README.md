@@ -14,6 +14,10 @@ The commit will be flagged if it includes certain text files with:
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
 
+The commit will also be flagged if the commit message does not include a Jira
+ID (unless marked with NO_JIRA), or if the size of new or modiffied files
+exceeds a threshold.
+
 
 # Github action
 
