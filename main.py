@@ -16,9 +16,9 @@ import githooks
 if __name__ == '__main__':
 
     message = os.getenv('INPUT_COMMITMESSAGE')
-    print(f'Commit message: {message}')
 
     print(f'Checking commit {githooks.get_sha()} by {githooks.get_user()} in {githooks.get_branch()}')
+    print(f'Commit message: {message}')
 
     files = githooks.get_commit_files()
     print(f'Checking {githooks.get_event()} modified files:')

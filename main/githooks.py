@@ -781,7 +781,7 @@ def check_commit_msg(message, files):
                 return 1
 
     return 0
-jira_id_pattern = re.compile(r'\b[A-Z]{2,5}-[0-9]{1,4}\b')
+jira_id_pattern = re.compile(r'\b[A-Z]{2,8}-[0-9]{1,5}\b')
 
 
 class TestJiraIDPattern(unittest.TestCase):
@@ -790,15 +790,20 @@ class TestJiraIDPattern(unittest.TestCase):
             m = jira_id_pattern.search(input)
             self.assertEqual(bool(m), is_jira)
         _test('BLD-5704')
+        _test('CQ-1')
+        _test('CQ-12345')
+        _test('SKETCHER-1')
+        _test('SKETCHER-12345')
         _test("BLD-1234 fixed some builds")
         _test("fixed some builds BLD-1234 ")
         _test("fixed some builds (Jira BLD-1234)")
         _test("fixed some builds\n some more text BLD-1234")
         _test('lower-1234', False)
         _test('A-1234', False)
-        _test('ABCDEF-1234', False)
-        _test('BLD-12345', False)
-        _test('wordBLD-1234word', False)
+        _test('ABCDEFGHI-1234', False)
+        _test('BLD-123456', False)
+        _test('wordBLD-1234', False)
+        _test('BLD-1234word', False)
 
 
 def commit_hook(merge=False):
