@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net5.0</TargetFramework>
+        <RootNamespace>Ccdc.CommitHooks</RootNamespace>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <PublishReadyToRun>false</PublishReadyToRun>
+        <TrimMode>link</TrimMode>
+        <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    </PropertyGroup>
+</Project>
