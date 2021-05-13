@@ -23,6 +23,8 @@ SOFT_SIZE_THRESHOLD = 5.0
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # No jira marker in commit message
 NO_JIRA_MARKER = 'NO_JIRA'
+# A marker to represent it's a change we don't want to commit
+DO_NOT_COMMIT = 'do not' + ' commit'
 # Check file content if it has these extensions
 CHECKED_EXTS = [
         '.bat',
@@ -571,8 +573,8 @@ def check_username():
 
 
 def check_file_content(filename, data):
-    if 'do not commit' in data.lower():
-        _fail(f'Found DO NOT COMMIT in "{filename}".')
+    if DO_NOT_COMMIT in data.lower():
+        _fail(f'Found {DO_NOT_COMMIT.upper()} in "{filename}".')
         return 1
 
     if '\t' in data:
@@ -737,7 +739,7 @@ def check_content(files):
         3. It's a text file
 
     We check that:
-        1. It does non contain "DO NOT COMMIT" (case insensitive)
+        1. It does not contain DO_NOT_COMMIT (case insensitive)
         2. It does not contain tab
         3. For C / C++ source files:
             a. It has no missing newline at the end
@@ -816,7 +818,7 @@ class TestCheckCommitMessage(unittest.TestCase):
             self.assertEqual(rc == 0, is_good)
         _test('ABC-1234')
         _test('Some changes for ABC-1234 ticket')
-        _test('Trivail change NO_JIRA')
+        _test('Trivial change NO_JIRA')
         _test("Merge branch 'main' into my_branch")
         _test("Merge branch 'branch_1' into branch_2")
         _test('I forgot to add the jira marker!', False)
