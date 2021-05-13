@@ -1,0 +1,78 @@
+name: Build release archives
+
+on: [push, pull_request]
+# on:
+#   push:
+#     branches: [ $default-branch ]
+#   pull_request:
+#     branches: [ $default-branch ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+
+    # Execute all unit tests in the solution
+    - name: Execute unit tests
+      run: dotnet test
+      working-directory: src
+
+    - name: Build windows x64 version
+      run: dotnet publish -c Release -r win10-x64
+      working-directory: src
+
+    - name: Build linux x64 version
+      run: dotnet publish -c Release -r linux-x64
+      working-directory: src
+
+    - name: Build macos x64 version
+      run: dotnet publish -c Release -r osx.10.15-x64
+      working-directory: src
+
+    - name: Add executables to windows x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: win10-x64
+        path: src/bin/Release/net5.0/win10-x64/publish/*
+
+    - name: Add common scripts to windows x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: win10-x64
+        path: main/*
+
+    - name: Add executables to linux x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: linux-x64
+        path: src/bin/Release/net5.0/linux-x64/publish/*
+
+    - name: Add common scripts to linux x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: linux-x64
+        path: main/*
+
+    - name: Add executables to macos x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: macos-x64
+        path: src/bin/Release/net5.0/osx.10.15-x64/publish/*
+
+    - name: Add common scripts to macos x64 version package
+      uses: actions/upload-artifact@v2
+      with:
+        name: macos-x64
+        path: main/*
