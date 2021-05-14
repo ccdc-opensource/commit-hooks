@@ -1,12 +1,14 @@
-#!/usr/bin/env python
-'''
-A hook to check commit massage.
+#!/usr/bin/env bash
+me=`basename "$0"`
 
-This is currently used to decide if large file should be commited.
+case "$OSTYPE" in
+  msys)
+    echo "Running ${me} in MinGW"
+    PYTHON_EXECUTABLE=python
+  ;;
+  *)
+    echo "Running ${me} on linux / mac / unix"
+    PYTHON_EXECUTABLE=python3
+esac
 
-'''
-
-import githooks
-
-if __name__ == '__main__':
-    exit(githooks.commit_msg_hook())
+${PYTHON_EXECUTABLE} "${BASH_SOURCE[0]%.*}.py" "$@"
