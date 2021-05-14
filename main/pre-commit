@@ -1,13 +1,16 @@
-#!/usr/bin/env python3
-'''
-This is a git hook migrated from hg.
+#!/usr/bin/env bash
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-Reference:
-https://confluence.ccdc.cam.ac.uk/pages/viewpage.action?spaceKey=GIT&title=Hooks
-
-'''
-
-import githooks
-
-if __name__ == '__main__':
-    exit(githooks.commit_hook())
+case "$OSTYPE" in
+  darwin*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe --client-side --pre-commit
+  ;; 
+  linux*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe --client-side --pre-commit
+  ;; 
+  msys*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe.exe --client-side --pre-commit
+  ;; 
+  *)
+  echo "unsupported OSTYPE: $OSTYPE" ;;
+esac

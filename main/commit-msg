@@ -1,12 +1,16 @@
-#!/usr/bin/env python3
-'''
-A hook to check commit massage.
+#!/usr/bin/env bash
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-This is currently used to decide if large file should be commited.
-
-'''
-
-import githooks
-
-if __name__ == '__main__':
-    exit(githooks.commit_msg_hook())
+case "$OSTYPE" in
+  darwin*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe --client-side --commit-msg
+  ;; 
+  linux*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe --client-side --commit-msg
+  ;; 
+  msys*)
+    $SCRIPT_DIR/Ccdc.CommitHooks.CommitHookExe.exe --client-side --commit-msg
+  ;; 
+  *)
+  echo "unsupported OSTYPE: $OSTYPE" ;;
+esac
