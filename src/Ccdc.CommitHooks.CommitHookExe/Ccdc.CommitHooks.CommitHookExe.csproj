@@ -6,8 +6,13 @@
         <PublishSingleFile>true</PublishSingleFile>
         <SelfContained>true</SelfContained>
         <PublishTrimmed>true</PublishTrimmed>
-        <PublishReadyToRun>false</PublishReadyToRun>
+        <PublishReadyToRun>true</PublishReadyToRun>
         <TrimMode>link</TrimMode>
         <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ccdc.CommitHooks/Ccdc.CommitHooks.csproj" />
+  </ItemGroup>
+
 </Project>
