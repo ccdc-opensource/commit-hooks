@@ -1,13 +1,14 @@
-#!/usr/bin/env python
-'''
-This is a git hook migrated from hg.
+#!/usr/bin/env bash
+me=`basename "$0"`
 
-Reference:
-https://confluence.ccdc.cam.ac.uk/pages/viewpage.action?spaceKey=GIT&title=Hooks
+case "$OSTYPE" in
+  msys)
+    echo "Running ${me} in MinGW"
+    PYTHON_EXECUTABLE=python
+  ;;
+  *)
+    echo "Running ${me} linux / mac / unix"
+    PYTHON_EXECUTABLE=python3
+esac
 
-'''
-
-import githooks
-
-if __name__ == '__main__':
-    exit(githooks.commit_hook(merge=True))
+${PYTHON_EXECUTABLE} "${BASH_SOURCE[0]%.*}.py" "$@"
