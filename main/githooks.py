@@ -441,7 +441,7 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
 
     def test_decodeerror(self):
         # A text file that is not utf-8 encoded - report and skip
-        test_file = '../test/decode_error.txt'
+        test_file = Path(__file__).parent / '../test/decode_error.txt'
         with patch('sys.stdout', new=StringIO()) as tmp_stdout:
             retval = trim_trailing_whitespace_in_file(test_file, True, True)
             self.assertEqual(retval, 0)
