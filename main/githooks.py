@@ -292,8 +292,12 @@ def check_eol(files):
 
 def check_do_not_merge_in_file(filename, new_file=False):
     '''Check for "do not merge" in a filename'''
-    with open(filename, 'rb') as fileobj:
-        lines = fileobj.read().decode().splitlines(True)
+    try:
+        with open(filename, 'rb') as fileobj:
+            lines = fileobj.read().decode().splitlines(True)
+    except UnicodeDecodeError:
+        _skip(filename, 'File is not UTF-8 encoded')
+        return 0
 
     if new_file:
         line_nums = [f'1-{len(lines)}']
