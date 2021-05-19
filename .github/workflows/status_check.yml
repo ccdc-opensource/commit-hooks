@@ -19,6 +19,6 @@ jobs:
           echo 'commit_message<<EOF' >> $GITHUB_ENV
           git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - uses: ccdc-opensource/commit-hooks@v4
+      - uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
