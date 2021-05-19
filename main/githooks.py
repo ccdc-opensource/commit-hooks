@@ -278,6 +278,7 @@ def check_eol(files):
             with open(filename, 'rb') as fileobj:
                 data = fileobj.read().decode()
         except UnicodeDecodeError:
+            _skip(filename, 'File is not UTF-8 encoded')
             continue
 
         # Skip binary file
