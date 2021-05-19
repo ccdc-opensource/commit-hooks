@@ -377,7 +377,7 @@ def trim_trailing_whitespace_in_file(filename, new_file, dry_run,
         with open(filename, 'rb') as fileobj:
             lines = fileobj.read().decode().splitlines(True)
     except UnicodeDecodeError:
-        return
+        return 0
 
     if new_file:
         line_nums = [f'1-{len(lines)}']
@@ -398,7 +398,7 @@ def trim_trailing_whitespace_in_file(filename, new_file, dry_run,
             if dry_run:
                 modified_lines.append(str(line_num))
             else:
-                print(f'   Fixed line {line_num}')
+                print(f'   Fixed line {filename}:{line_num}')
                 modified_file = True
                 lines[line_num-1] = after
 
