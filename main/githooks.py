@@ -5,8 +5,10 @@ Module for a git hook.
 '''
 
 from collections import defaultdict
+from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from unittest.mock import patch
 import os
 import platform
 import re
@@ -377,6 +379,7 @@ def trim_trailing_whitespace_in_file(filename, new_file, dry_run,
         with open(filename, 'rb') as fileobj:
             lines = fileobj.read().decode().splitlines(True)
     except UnicodeDecodeError:
+        _skip(filename, 'File is not UTF-8 encoded')
         return 0
 
     if new_file:
@@ -435,6 +438,14 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
             self.assertEqual(Path(tmp.name).read_text(), trimmed_content)
             retval = trim_trailing_whitespace_in_file(tmp.name, True, True)
             self.assertEqual(retval, 0)
+
+    def test_decodeerror(self):
+        # A text file that is not utf-8 encoded - report and skip
+        test_file = '../test/decode_error.txt'
+        with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+            retval = trim_trailing_whitespace_in_file(test_file, True, True)
+            self.assertEqual(retval, 0)
+            self.assertEqual(tmp_stdout.getvalue().strip(), f'SKIP {test_file}: File is not UTF-8 encoded')
 
 
 def remove_trailing_white_space(files, new_files=False, dry_run=False):
