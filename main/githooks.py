@@ -847,10 +847,6 @@ def commit_hook(merge=False):
     retval = 0
     files = get_commit_files()
 
-    print(' Auto remove trailing white space ...')
-    remove_trailing_white_space(files['M'])
-    remove_trailing_white_space(files['A'], new_files=True)
-
     print(' Check username ...')
     retval += check_username()
 
