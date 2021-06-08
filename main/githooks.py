@@ -107,6 +107,19 @@ def get_branch():
         return _get_output('git branch').split()[-1]
 
 
+def get_text_file_content(filename):
+    '''Get content of a text file
+
+    Locally (ie. non-github event) we return the content of the staged file,
+    not the file in the working directory.
+    '''
+    if _is_github_event():
+        data = Path(filename).read_text()
+    else:
+        data = _get_output(f'git show :{filename}')
+    return data
+
+
 def get_sha():
     '''Get the commit sha
 
@@ -738,9 +751,9 @@ def get_file_content(filename):
     # NOTE: ignored_patterns not implemented
 
     try:
-        data = Path(filename).read_text()
+        data = get_text_file_content(filename)
     except Exception as exc:
-        print(f'Error {exc}: reading {filename}')
+        print(f'Error "{exc}" while reading {filename}')
         return
 
     # Skip binary file
