@@ -173,7 +173,10 @@ def parse_diff_header(header_line):
     start = int(match.group(1))
     if match.group(2):
         num = int(match.group(3))
-        changed_lines = f'{start}-{start+num-1}'
+        if num > 0:
+            changed_lines = f'{start}-{start+num-1}'
+        else:
+            changed_lines = str(start)
     else:
         changed_lines = str(start)
     return changed_lines
@@ -187,6 +190,8 @@ class TestParseDiffHeaderPattern(unittest.TestCase):
         _test('@@ -142 +178 @@', '178')
         _test('@@ -142 +178,3 @@', '178-180')
         _test('@@ -142 +178,7 @@', '178-184')
+        _test('@@ -3,0 +3 @@', '3')
+        _test('@@ -1 +0,0 @@', '0')
 
 
 def get_changed_lines(modified_file):
@@ -846,10 +851,6 @@ class TestCheckCommitMessage(unittest.TestCase):
 def commit_hook(merge=False):
     retval = 0
     files = get_commit_files()
-
-    print(' Auto remove trailing white space ...')
-    remove_trailing_white_space(files['M'])
-    remove_trailing_white_space(files['A'], new_files=True)
 
     print(' Check username ...')
     retval += check_username()
