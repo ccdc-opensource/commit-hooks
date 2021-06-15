@@ -1,13 +1,6 @@
 name: Run precommit checks on self
 on: pull_request
 jobs:
-  log-github-event-goodies:
-    name: "Log everything on GitHub Event"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Logging
-        run: |
-          echo "${{toJSON(github.event)}}"
   precommit-check:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -26,10 +19,7 @@ jobs:
           echo 'commit_message<<EOF' >> $GITHUB_ENV
           git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - name: message1
-        run: echo "The message is ${{ github.event.head_commit.message }}"
-      - name: message2
-        run: echo "The message is ${{ github.event.commits[0].message }}"
-      - uses: ccdc-opensource/commit-hooks@update_status_check
+        shell: bash
+      - uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
