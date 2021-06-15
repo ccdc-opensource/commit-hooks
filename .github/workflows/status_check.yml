@@ -5,7 +5,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -19,6 +19,7 @@ jobs:
           echo 'commit_message<<EOF' >> $GITHUB_ENV
           git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - uses: ccdc-opensource/commit-hooks@v4
+        shell: bash
+      - uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
