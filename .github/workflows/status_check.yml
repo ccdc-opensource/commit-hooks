@@ -1,0 +1,35 @@
+name: Run precommit checks on self
+on: pull_request
+jobs:
+  log-github-event-goodies:
+    name: "Log everything on GitHub Event"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Logging
+        run: |
+          echo "${{toJSON(github.event)}}"
+  precommit-check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: Get the commit message
+        run: |
+          echo 'commit_message<<EOF' >> $GITHUB_ENV
+          git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+      - name: message1
+        run: echo "The message is ${{ github.event.head_commit.message }}"
+      - name: message2
+        run: echo "The message is ${{ github.event.commits[0].message }}"
+      - uses: ccdc-opensource/commit-hooks@update_status_check
+        with:
+          commitMessage: ${{ env.commit_message }}
