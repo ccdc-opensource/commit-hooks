@@ -1,13 +1,6 @@
 name: Run precommit checks on self
 on: pull_request
 jobs:
-  log-github-event-goodies:
-    name: "Log everything on GitHub Event"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Logging
-        run: |
-          echo "${{toJSON(github.event)}}"
   precommit-check:
     runs-on: ${{ matrix.os }}
     strategy:
