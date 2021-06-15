@@ -107,13 +107,31 @@ def get_branch():
         return _get_output('git branch').split()[-1]
 
 
+def get_file_content_as_binary(filename):
+    '''Get content of a file in binary mode
+
+    Locally (ie. non-github event) we return the content of the staged file,
+    not the file in the working directory.
+    '''
+    if _is_github_event() or 'pytest' in sys.modules:
+        try:
+            with open(filename, 'rb') as fileobj:
+                data = fileobj.read().decode()
+        except UnicodeDecodeError:
+            _skip(filename, 'File is not UTF-8 encoded')
+            data = None
+    else:
+        data = _get_output(f'git show :{filename}')
+    return data
+
+
 def get_text_file_content(filename):
     '''Get content of a text file
 
     Locally (ie. non-github event) we return the content of the staged file,
     not the file in the working directory.
     '''
-    if _is_github_event():
+    if _is_github_event() or 'pytest' in sys.modules:
         data = Path(filename).read_text()
     else:
         data = _get_output(f'git show :{filename}')
@@ -292,11 +310,8 @@ def check_eol(files):
     # As the client environment is not configured with autocrlf
     # we need to ensure that every text file does not contain CRLF.
     for filename in files:
-        try:
-            with open(filename, 'rb') as fileobj:
-                data = fileobj.read().decode()
-        except UnicodeDecodeError:
-            _skip(filename, 'File is not UTF-8 encoded')
+        data = get_file_content_as_binary(filename)
+        if data is None:
             continue
 
         # Skip binary file
@@ -311,12 +326,11 @@ def check_eol(files):
 
 def check_do_not_merge_in_file(filename, new_file=False):
     '''Check for "do not merge" in a filename'''
-    try:
-        with open(filename, 'rb') as fileobj:
-            lines = fileobj.read().decode().splitlines(True)
-    except UnicodeDecodeError:
-        _skip(filename, 'File is not UTF-8 encoded')
+    data = get_file_content_as_binary(filename)
+    if data is None:
         return 0
+    else:
+        lines = data.splitlines(True)
 
     if new_file:
         line_nums = [f'1-{len(lines)}']
@@ -398,12 +412,11 @@ def trim_trailing_whitespace_in_file(filename, new_file, dry_run,
     :returns: If dry_run=True, 0 if no trailing whitespace is found, 1 if
         trailing whitepsace is found.
     '''
-    try:
-        with open(filename, 'rb') as fileobj:
-            lines = fileobj.read().decode().splitlines(True)
-    except UnicodeDecodeError:
-        _skip(filename, 'File is not UTF-8 encoded')
+    data = get_file_content_as_binary(filename)
+    if data is None:
         return 0
+    else:
+        lines = data.splitlines(True)
 
     if new_file:
         line_nums = [f'1-{len(lines)}']
@@ -730,6 +743,24 @@ class TestCppThrowStdExceptionPattern(unittest.TestCase):
                 cpp_throw_std_exception_pattern.search('throw exceptionblah'))
         self.assertIsNone(
                 cpp_throw_std_exception_pattern.search('rethrow exception'))
+
+
+class TestCheckFileContent(unittest.TestCase):
+    def test_various_files(self):
+        def _test(filename, is_good, data=None):
+            test_file = Path(__file__).parent / f'../test/{filename}'
+            if data is None:
+                data = get_file_content(str(test_file))
+            retval = check_file_content(filename, data)
+            self.assertEqual(retval == 0, is_good)
+        def _test_good_file(filename, data=None):
+            _test(filename, True, data=data)
+        def _test_bad_file(filename, data=None):
+            _test(filename, False, data=data)
+        _test_bad_file('do_not_commit.py', data='do not ' + 'commit')
+        _test_bad_file('tab.py', data='field\tfield')
+        _test_bad_file('no_newline.cpp', data='No terminating newline')
+        _test_good_file('good_file.cpp')
 
 
 def get_file_content(filename):
