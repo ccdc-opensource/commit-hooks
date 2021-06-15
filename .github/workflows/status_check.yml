@@ -1,11 +1,18 @@
 name: Run precommit checks on self
 on: pull_request
 jobs:
+  log-github-event-goodies:
+    name: "Log everything on GitHub Event"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Logging
+        run: |
+          echo "${{toJSON(github.event)}}"
   precommit-check:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest]
+        os: [ ubuntu-latest, macos-latest ]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -22,3 +29,23 @@ jobs:
       - uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
+  precommit-check:
+    runs-on: windows-latest
+    env:
+        COMMIT_MESSAGE_1: ${{ github.event.head_commit.message }}
+        COMMIT_MESSAGE_2: ${{ github.event.commits[0].message }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: Get the commit message
+        run: |
+          echo 'commit_message<<EOF' >> $GITHUB_ENV
+          git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+      - name: What do we have?
+        run: echo "One: $COMMIT_MESSAGE_1 and Two: $COMMIT_MESSAGE_2"
