@@ -26,7 +26,7 @@ jobs:
           echo 'commit_message<<EOF' >> $GITHUB_ENV
           git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
-      - uses: ccdc-opensource/commit-hooks@main
+      - uses: ccdc-opensource/commit-hooks@update_status_check
         with:
           commitMessage: ${{ env.commit_message }}
   precommit-check:
@@ -49,3 +49,6 @@ jobs:
           echo 'EOF' >> $GITHUB_ENV
       - name: What do we have?
         run: echo "One: $COMMIT_MESSAGE_1 and Two: $COMMIT_MESSAGE_2"
+      - uses: ccdc-opensource/commit-hooks@update_status_check
+        with:
+          commitMessage: ${{ env.commit_message }}
