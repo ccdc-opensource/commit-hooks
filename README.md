@@ -9,7 +9,6 @@ The commit will be flagged if it includes certain text files with:
 * File name that can cause errors on Windows
 * CRLF line endings
 * NO NOT MERGE or DO NOT COMMIT
-* Trailing whitespace
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
@@ -23,7 +22,7 @@ exceeds a threshold.
 
 ## Usage
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v3
+- uses: ccdc-opensource/commit-hooks@v6
   with:
     commitMessage: 'The commit message'
 ```
@@ -49,7 +48,8 @@ jobs:
       - name: Get the commit message
         run: |
           echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
-      - uses: ccdc-opensource/commit-hooks@v3
+        shell: bash
+      - uses: ccdc-opensource/commit-hooks@v6
         with:
           commitMessage: ${{ env.commit_message }}
 ```
