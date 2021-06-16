@@ -58,7 +58,7 @@ TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
 
 def _get_output(command, cwd='.'):
-    return subprocess.check_output(command, shell=True, cwd=cwd).decode()
+    return subprocess.check_output(command, shell=True, cwd=cwd).decode(errors='replace')
 
 
 def _is_github_event():
