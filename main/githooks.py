@@ -58,7 +58,7 @@ TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
 
 def _get_output(command, cwd='.'):
-    return subprocess.check_output(command, shell=True, cwd=cwd).decode()
+    return subprocess.check_output(command, shell=True, cwd=cwd).decode(errors='replace')
 
 
 def _is_github_event():
@@ -179,11 +179,11 @@ def get_commit_files():
     '''
     if _is_github_event():
         if _is_pull_request():
-            output = _get_output(f'git diff --name-status remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} --')
+            output = _get_output(f'git diff --ignore-submodules --name-status remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} --')
         else:
-            output = _get_output('git diff --name-status HEAD~.. --')
+            output = _get_output('git diff --ignore-submodules --name-status HEAD~.. --')
     else:
-        output = _get_output('git diff-index HEAD --cached')
+        output = _get_output('git diff-index --ignore-submodules HEAD --cached')
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
