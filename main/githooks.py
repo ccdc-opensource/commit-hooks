@@ -776,7 +776,6 @@ def get_file_content(filename):
     # Skip file if extension is not in the checked list
     if not any([filename.endswith(checked_ext)
                 for checked_ext in CHECKED_EXTS]):
-        _skip(filename, 'File extension is excluded')
         return
 
     # NOTE: ignored_patterns not implemented
