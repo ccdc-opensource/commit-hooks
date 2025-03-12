@@ -56,6 +56,14 @@ CHECKED_EXTS = [
 # File types that need a terminating newline
 TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
+esc_re = re.compile(r'\s|[]()[]')
+def _esc_char(match):
+    return '\\' + match.group(0)
+
+
+def _escape_filename(filename):
+    return esc_re.sub(_esc_char, filename)
+
 
 def _get_output(command, cwd='.'):
     return subprocess.check_output(command, shell=True, cwd=cwd).decode(errors='replace')
@@ -121,7 +129,7 @@ def get_file_content_as_binary(filename):
             _skip(filename, 'File is not UTF-8 encoded')
             data = None
     else:
-        data = _get_output(f'git show :{filename}')
+        data = _get_output(f'git show :{_escape_filename(filename)}')
     return data
 
 
@@ -134,7 +142,7 @@ def get_text_file_content(filename):
     if _is_github_event() or 'pytest' in sys.modules:
         data = Path(filename).read_text()
     else:
-        data = _get_output(f'git show :{filename}')
+        data = _get_output(f'git show :{_escape_filename(filename)}')
     return data
 
 
@@ -166,7 +174,7 @@ def get_branch_files():
 
 def add_file_to_index(filename):
     '''Add file to current commit'''
-    return _get_output(f'git add {filename}')
+    return _get_output(f'git add {_escape_filename(filename)}')
 
 
 def get_commit_files():
@@ -244,13 +252,13 @@ def get_changed_lines(modified_file):
     if _is_github_event():
         if _is_pull_request():
             output = _get_output(
-                    f'git diff --unified=0 remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} -- {modified_file}')
+                    f'git diff --unified=0 remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} -- {_escape_filename(modified_file)}')
         else:
             output = _get_output(
-                    f'git diff --unified=0 HEAD~ {modified_file}')
+                    f'git diff --unified=0 HEAD~ {_escape_filename(modified_file)}')
     else:
         output = _get_output(
-                f'git diff-index HEAD --unified=0 {modified_file}')
+                f'git diff-index HEAD --unified=0 {_escape_filename(modified_file)}')
 
     lines = []
     for line in output.splitlines():
