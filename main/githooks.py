@@ -56,13 +56,17 @@ CHECKED_EXTS = [
 # File types that need a terminating newline
 TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
-esc_re = re.compile(r'\s|[]()[]')
+_esc_re = re.compile(r'\s|[]()[]')
 def _esc_char(match):
+    ''' Lambda function to add in back-slashes to escape special chars as compiled in esc_re above
+        which makes filenames work with subprocess commands
+    '''
     return '\\' + match.group(0)
 
-
 def _escape_filename(filename):
-    return esc_re.sub(_esc_char, filename)
+    ''' Return an escaped filename - for example fi(1)le.txt would be changed to fi\\(1\\)le.txt
+    '''
+    return _esc_re.sub(_esc_char, filename)
 
 
 def _get_output(command, cwd='.'):
