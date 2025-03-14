@@ -461,9 +461,9 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
     def test_trim_trailing_whitespace(self):
         content = 'first line\nsecond line \nthird line '
         trimmed_content = 'first line\nsecond line\nthird line'
-        
+
+        name = NamedTemporaryFile().name        
         try:
-            name = NamedTemporaryFile().name
             Path(name).write_text(content)
             # Trailing whitespace found
             retval = trim_trailing_whitespace_in_file(name, True, True)
