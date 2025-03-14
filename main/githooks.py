@@ -146,7 +146,7 @@ def get_sha():
     GITHUB_SHA cannot be used because in a pull request it gives the sha of the
     fake merge commit.
     '''
-    return _get_output(['git','rev-parse', f'{get_branch()}'])
+    return _get_output(['git','rev-parse', get_branch()])
 
 
 def get_event():
@@ -159,13 +159,12 @@ def get_event():
 
 def get_branch_files():
     '''Get all files in branch'''
-    branch = get_branch()
-    return _get_output(['git','ls-tree', '-r', f'{branch}','--name-only']).splitlines()
+    return _get_output(['git','ls-tree', '-r', get_branch(),'--name-only']).splitlines()
 
 
 def add_file_to_index(filename):
     '''Add file to current commit'''
-    return _get_output(['git','add',f'{filename}'])
+    return _get_output(['git','add',filename])
 
 
 def get_commit_files():
@@ -284,7 +283,7 @@ class TestYieldChangedLines(unittest.TestCase):
 def get_config_setting(setting):
     '''Get the value of a config setting'''
     try:
-        return _get_output(['git', 'config', '--get', f'{setting}']).strip()
+        return _get_output(['git', 'config', '--get', setting]).strip()
     except subprocess.CalledProcessError:
         return None
 
