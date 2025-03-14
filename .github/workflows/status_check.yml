@@ -13,7 +13,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.7"
+          python-version: "3.11"
       - name: Get the commit message
         run: |
           echo 'commit_message<<EOF' >> $GITHUB_ENV
