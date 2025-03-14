@@ -133,7 +133,7 @@ def get_text_file_content(filename):
     if _is_github_event() or 'pytest' in sys.modules:
         data = Path(filename).read_text()
     else:
-        data = _get_output('git', 'show', f':{filename}')
+        data = _get_output(['git', 'show', f':{filename}'])
     return data
 
 
