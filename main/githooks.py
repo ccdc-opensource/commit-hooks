@@ -477,7 +477,7 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
             retval = trim_trailing_whitespace_in_file(name, True, True)
             self.assertEqual(retval, 0)
         finally:
-            Path(name).unlink(name)
+            Path(name).unlink()
 
 
     def test_decodeerror(self):
