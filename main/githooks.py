@@ -56,21 +56,8 @@ CHECKED_EXTS = [
 # File types that need a terminating newline
 TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
 
-_esc_re = re.compile(r'\s|[]()[]')
-def _esc_char(match):
-    ''' Lambda function to add in back-slashes to escape special chars as compiled in esc_re above
-        which makes filenames work with subprocess commands
-    '''
-    return '\\' + match.group(0)
-
-def _escape_filename(filename):
-    ''' Return an escaped filename - for example fi(1)le.txt would be changed to fi\\(1\\)le.txt
-    '''
-    return _esc_re.sub(_esc_char, filename)
-
-
-def _get_output(command, cwd='.'):
-    return subprocess.check_output(command, shell=True, cwd=cwd).decode(errors='replace')
+def _get_output(command_list, cwd='.'):
+    return subprocess.check_output(command_list, cwd=cwd).decode(errors='replace')
 
 
 def _is_github_event():
@@ -103,7 +90,7 @@ def get_user():
     if _is_github_event():
         return os.environ['GITHUB_ACTOR']
     else:
-        output = _get_output('git var GIT_AUTHOR_IDENT')
+        output = _get_output(['git', 'var', 'GIT_AUTHOR_IDENT'])
         match = re.match(r'^(.+) <', output)
         return match.group(1)
 
@@ -116,7 +103,7 @@ def get_branch():
         else:
             return os.environ['GITHUB_REF'].split('/')[-1]
     else:
-        return _get_output('git branch').split()[-1]
+        return _get_output(['git', 'branch']).split()[-1]
 
 
 def get_file_content_as_binary(filename):
@@ -133,7 +120,7 @@ def get_file_content_as_binary(filename):
             _skip(filename, 'File is not UTF-8 encoded')
             data = None
     else:
-        data = _get_output(f'git show :{_escape_filename(filename)}')
+        data = _get_output(['git','show', f':{filename}'])
     return data
 
 
@@ -146,7 +133,7 @@ def get_text_file_content(filename):
     if _is_github_event() or 'pytest' in sys.modules:
         data = Path(filename).read_text()
     else:
-        data = _get_output(f'git show :{_escape_filename(filename)}')
+        data = _get_output('git', 'show', f':{filename}')
     return data
 
 
@@ -159,7 +146,7 @@ def get_sha():
     GITHUB_SHA cannot be used because in a pull request it gives the sha of the
     fake merge commit.
     '''
-    return _get_output(f'git rev-parse {get_branch()}')
+    return _get_output(['git','rev-parse', f'{get_branch()}'])
 
 
 def get_event():
@@ -173,12 +160,12 @@ def get_event():
 def get_branch_files():
     '''Get all files in branch'''
     branch = get_branch()
-    return _get_output(f'git ls-tree -r {branch} --name-only').splitlines()
+    return _get_output(['git','ls-tree', '-r', f'{branch}','--name-only']).splitlines()
 
 
 def add_file_to_index(filename):
     '''Add file to current commit'''
-    return _get_output(f'git add {_escape_filename(filename)}')
+    return _get_output(['git','add',f'{filename}'])
 
 
 def get_commit_files():
@@ -190,12 +177,15 @@ def get_commit_files():
 
     '''
     if _is_github_event():
+        commands = ['git','diff','--ignore-submodules','--name-status']
         if _is_pull_request():
-            output = _get_output(f'git diff --ignore-submodules --name-status remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} --')
+            commands += [f'remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]}','--']
         else:
-            output = _get_output('git diff --ignore-submodules --name-status HEAD~.. --')
+            commands += ['HEAD~..', '--']
     else:
-        output = _get_output('git diff-index --ignore-submodules HEAD --cached')
+        commands = ['git', 'diff-index', '--ignore-submodules', 'HEAD', '--cached']
+        
+    output = _get_output(commands)
     result = defaultdict(list)
     for line in output.splitlines():
         parts = line.split()
@@ -254,15 +244,14 @@ def get_changed_lines(modified_file):
     :returns: A list of line number (integers and ranges) of changed lines
     '''
     if _is_github_event():
+        commands = ['git','diff','--unified=0']
         if _is_pull_request():
-            output = _get_output(
-                    f'git diff --unified=0 remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]} -- {_escape_filename(modified_file)}')
+            commands += [f'remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]}', '--',f'{modified_file}']
         else:
-            output = _get_output(
-                    f'git diff --unified=0 HEAD~ {_escape_filename(modified_file)}')
+            commands += ['HEAD~', f'{modified_file}']
     else:
-        output = _get_output(
-                f'git diff-index HEAD --unified=0 {_escape_filename(modified_file)}')
+        commands = [f'git', 'diff-index', 'HEAD', '--unified=0', f'{modified_file}']
+    output = _get_output(commands)
 
     lines = []
     for line in output.splitlines():
@@ -295,7 +284,7 @@ class TestYieldChangedLines(unittest.TestCase):
 def get_config_setting(setting):
     '''Get the value of a config setting'''
     try:
-        return _get_output(f'git config --get {setting}').strip()
+        return _get_output(['git', 'config', '--get', f'{setting}']).strip()
     except subprocess.CalledProcessError:
         return None
 
@@ -472,20 +461,24 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
     def test_trim_trailing_whitespace(self):
         content = 'first line\nsecond line \nthird line '
         trimmed_content = 'first line\nsecond line\nthird line'
-        with NamedTemporaryFile() as tmp:
-            Path(tmp.name).write_text(content)
+        name = NamedTemporaryFile().name
+        Path(name).write_text(content)
+        # Trailing whitespace found
+        retval = trim_trailing_whitespace_in_file(name, True, True)
+        self.assertEqual(retval, 1)
+        self.assertEqual(Path(name).read_text(), content)
 
-            # Trailing whitespace found
-            retval = trim_trailing_whitespace_in_file(tmp.name, True, True)
-            self.assertEqual(retval, 1)
-            self.assertEqual(Path(tmp.name).read_text(), content)
+        # Now remove the trailing whitespace
+        trim_trailing_whitespace_in_file(name, True, False, False)
+        # Trailing whitespace no longer found
+        self.assertEqual(Path(name).read_text(), trimmed_content)
+        retval = trim_trailing_whitespace_in_file(name, True, True)
+        self.assertEqual(retval, 0)
 
-            # Now remove the trailing whitespace
-            trim_trailing_whitespace_in_file(tmp.name, True, False, False)
-            # Trailing whitespace no longer found
-            self.assertEqual(Path(tmp.name).read_text(), trimmed_content)
-            retval = trim_trailing_whitespace_in_file(tmp.name, True, True)
-            self.assertEqual(retval, 0)
+        try:
+            Path(name).unlink(name)
+        except Exception as e:
+            pass
 
     def test_decodeerror(self):
         # A text file that is not utf-8 encoded - report and skip
