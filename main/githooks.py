@@ -461,24 +461,24 @@ class TestTrimTrailingWhitespace(unittest.TestCase):
     def test_trim_trailing_whitespace(self):
         content = 'first line\nsecond line \nthird line '
         trimmed_content = 'first line\nsecond line\nthird line'
-        name = NamedTemporaryFile().name
-        Path(name).write_text(content)
-        # Trailing whitespace found
-        retval = trim_trailing_whitespace_in_file(name, True, True)
-        self.assertEqual(retval, 1)
-        self.assertEqual(Path(name).read_text(), content)
-
-        # Now remove the trailing whitespace
-        trim_trailing_whitespace_in_file(name, True, False, False)
-        # Trailing whitespace no longer found
-        self.assertEqual(Path(name).read_text(), trimmed_content)
-        retval = trim_trailing_whitespace_in_file(name, True, True)
-        self.assertEqual(retval, 0)
-
+        
         try:
+            name = NamedTemporaryFile().name
+            Path(name).write_text(content)
+            # Trailing whitespace found
+            retval = trim_trailing_whitespace_in_file(name, True, True)
+            self.assertEqual(retval, 1)
+            self.assertEqual(Path(name).read_text(), content)
+
+            # Now remove the trailing whitespace
+            trim_trailing_whitespace_in_file(name, True, False, False)
+            # Trailing whitespace no longer found
+            self.assertEqual(Path(name).read_text(), trimmed_content)
+            retval = trim_trailing_whitespace_in_file(name, True, True)
+            self.assertEqual(retval, 0)
+        finally:
             Path(name).unlink(name)
-        except Exception as e:
-            pass
+
 
     def test_decodeerror(self):
         # A text file that is not utf-8 encoded - report and skip
