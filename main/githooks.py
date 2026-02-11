@@ -152,7 +152,9 @@ def get_repo():
     if _is_github_event():
         return os.environ['GITHUB_REPOSITORY']
     else:
-        return _get_output(['git', 'config', '--get', 'remote.origin.url']).strip().split(':')[-1].rstrip('.git')
+        url = _get_output(['git', 'config', '--get', 'remote.origin.url'])
+        org = re.search(r'github\.com[:\/](.+?)(\.git)?$', url)
+        return org.group(1) if org else url
 
 def get_event():
     '''Get the git event'''
@@ -939,7 +941,7 @@ def commit_hook(merge=False):
 def commit_msg_hook():
     retval = 0
     files = get_commit_files()
-    commit_message = Path(""" sys """.argv[1]).read_text()
+    commit_message = Path(sys.argv[1]).read_text()
 
     print(' Check commit message ...')
     retval += check_commit_msg(commit_message, files['M'] + files['A'], get_repo())
