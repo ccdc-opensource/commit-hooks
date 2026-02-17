@@ -833,7 +833,7 @@ def check_content(files):
     return retval
 
 
-def check_commit_msg(message, files, repo):
+def check_commit_msg(message, files):
     '''Check commit message (and file size).
 
     Abort if file size exceeds hard (github.com) limit.
