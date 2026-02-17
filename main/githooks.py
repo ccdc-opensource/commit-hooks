@@ -899,7 +899,7 @@ class TestJiraIDPattern(unittest.TestCase):
 class TestCheckCommitMessage(unittest.TestCase):
     def test_various_strings(self):
         def _test(input, is_good=True):
-            rc = check_commit_msg(input, [], "dummy/repo")
+            rc = check_commit_msg(input, [])
             self.assertEqual(rc == 0, is_good)
         _test('ABC-1234')
         _test('Some changes for ABC-1234 ticket')
