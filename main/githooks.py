@@ -944,6 +944,6 @@ def commit_msg_hook():
     commit_message = Path(sys.argv[1]).read_text()
 
     print(' Check commit message ...')
-    retval += check_commit_msg(commit_message, files['M'] + files['A'], get_repo())
+    retval += check_commit_msg(commit_message, files['M'] + files['A'])
 
     return retval
