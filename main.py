@@ -21,6 +21,7 @@ if __name__ == '__main__':
     print(f'Commit message: {message}')
 
     files = githooks.get_commit_files()
+    repo = githooks.get_repo()
     print(f'Checking {githooks.get_event()} modified files:')
     print('  ' + '\n  '.join(files['M']))
     print(f'Checking {githooks.get_event()} new files:')
@@ -28,7 +29,7 @@ if __name__ == '__main__':
 
     retval = 0
 
-    retval += githooks.check_commit_msg(message, files['M'] + files['A'])
+    retval += githooks.check_commit_msg(message, files['M'] + files['A'], repo)
 
     if githooks._is_pull_request():
         retval += githooks.check_do_not_merge(files['M'])
