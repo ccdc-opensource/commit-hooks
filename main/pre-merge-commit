@@ -8,7 +8,11 @@ case "$OSTYPE" in
   ;;
   *)
     echo "Running ${me} linux / mac / unix"
-    PYTHON_EXECUTABLE=python3
+    if command -v python3 > /dev/null 2>&1; then
+      PYTHON_EXECUTABLE=python3
+    else
+      PYTHON_EXECUTABLE=python
+    fi
 esac
 
 ${PYTHON_EXECUTABLE} "${BASH_SOURCE[0]%.*}.py" "$@"
