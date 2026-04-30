@@ -22,7 +22,7 @@ exceeds a threshold.
 
 ## Usage
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v6
+- uses: ccdc-opensource/commit-hooks@v7
   with:
     commitMessage: 'The commit message'
 ```
@@ -38,18 +38,18 @@ jobs:
   Pull-request-files-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.7"
+          python-version: "3.11"
       - name: Get the commit message
         run: |
           echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
         shell: bash
-      - uses: ccdc-opensource/commit-hooks@v6
+      - uses: ccdc-opensource/commit-hooks@v7
         with:
           commitMessage: ${{ env.commit_message }}
 ```
