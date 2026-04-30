@@ -2,28 +2,31 @@
 me=$(basename "$0")
 
 is_python3() {
-  "$1" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1
+  "$@" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1
 }
 
 case "$OSTYPE" in
   msys*|mingw*|cygwin*|win32*)
     echo "Running ${me} on Windows"
-    if command -v python3 > /dev/null 2>&1 && is_python3 python3; then
-      PYTHON_EXECUTABLE=(python3)
-    elif command -v py > /dev/null 2>&1 && py -3 -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' > /dev/null 2>&1; then
+    if command -v py >/dev/null 2>&1 && is_python3 py -3; then
       PYTHON_EXECUTABLE=(py -3)
-    elif command -v python > /dev/null 2>&1 && is_python3 python; then
-      PYTHON_EXECUTABLE=(python)
     else
-      echo "Error: Python not found or not runnable"
-      exit 1
+      python3_path=$(command -v python3 2>/dev/null || true)
+      if [ -n "$python3_path" ] && [[ "$python3_path" != *WindowsApps* ]] && is_python3 python3; then
+        PYTHON_EXECUTABLE=(python3)
+      elif command -v python >/dev/null 2>&1 && is_python3 python; then
+        PYTHON_EXECUTABLE=(python)
+      else
+        echo "Error: Python 3 not found. Please install Python 3 or disable the Microsoft Store python alias."
+        exit 1
+      fi
     fi
     ;;
   *)
     echo "Running ${me} on linux / mac / unix"
-    if command -v python3 > /dev/null 2>&1 && is_python3 python3; then
+    if command -v python3 >/dev/null 2>&1 && is_python3 python3; then
       PYTHON_EXECUTABLE=(python3)
-    elif command -v python > /dev/null 2>&1 && is_python3 python; then
+    elif command -v python >/dev/null 2>&1 && is_python3 python; then
       PYTHON_EXECUTABLE=(python)
     else
       echo "Error: Python not found or not runnable"
