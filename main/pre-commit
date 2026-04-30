@@ -4,9 +4,9 @@ me=$(basename "$0")
 case "$OSTYPE" in
   msys*|mingw*|cygwin*|win32*)
     echo "Running ${me} on Windows"
-    if command -v python3 >/dev/null 2>&1; then
+    if command -v python3 > /dev/null 2>&1; then
       PYTHON_EXECUTABLE=(python3)
-    elif command -v python >/dev/null 2>&1; then
+    elif command -v python > /dev/null 2>&1; then
       PYTHON_EXECUTABLE=(python)
     else
       echo "Error: Python not found or not runnable"
@@ -15,9 +15,9 @@ case "$OSTYPE" in
     ;;
   *)
     echo "Running ${me} on linux / mac / unix"
-    if command -v python3 >/dev/null 2>&1; then
+    if command -v python3 > /dev/null 2>&1; then
       PYTHON_EXECUTABLE=(python3)
-    elif command -v python >/dev/null 2>&1; then
+    elif command -v python > /dev/null 2>&1; then
       PYTHON_EXECUTABLE=(python)
     else
       echo "Error: Python not found or not runnable"
