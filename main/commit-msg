@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
-me=`basename "$0"`
+me=$(basename "$0")
 
 case "$OSTYPE" in
-  msys)
-    echo "Running ${me} in MinGW"
-    PYTHON_EXECUTABLE=python
-  ;;
+  msys*|mingw*|cygwin*|win32*)
+    echo "Running ${me} on Windows"
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
+      PYTHON_EXECUTABLE=(python3)
+    elif command -v python >/dev/null 2>&1 && python -c "import sys" >/dev/null 2>&1; then
+      PYTHON_EXECUTABLE=(python)
+    else
+      echo "Error: Python not found or not runnable"
+      exit 1
+    fi
+    ;;
   *)
     echo "Running ${me} on linux / mac / unix"
-    if command -v python3 > /dev/null 2>&1; then
-      PYTHON_EXECUTABLE=python3
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
+      PYTHON_EXECUTABLE=(python3)
+    elif command -v python >/dev/null 2>&1 && python -c "import sys" >/dev/null 2>&1; then
+      PYTHON_EXECUTABLE=(python)
     else
-      PYTHON_EXECUTABLE=python
+      echo "Error: Python not found or not runnable"
+      exit 1
     fi
+    ;;
 esac
 
-${PYTHON_EXECUTABLE} "${BASH_SOURCE[0]%.*}.py" "$@"
+"${PYTHON_EXECUTABLE[@]}" "${BASH_SOURCE[0]%.*}.py" "$@"
