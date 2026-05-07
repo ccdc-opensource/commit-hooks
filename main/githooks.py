@@ -916,7 +916,8 @@ class TestCheckCommitMessage(unittest.TestCase):
         _test('Trivial change NO_JIRA')
         _test(
             'Trivial change\n\n'
-            'Co-authored-by: Copilot Autofix powered by AI'
+            'Co-authored-by: Copilot Autofix powered by AI '
+            '<175728472+Copilot@users.noreply.github.com>'
         )
         _test("Merge branch 'main' into my_branch")
         _test("Merge branch 'branch_1' into branch_2")
