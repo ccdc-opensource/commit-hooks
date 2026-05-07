@@ -25,6 +25,11 @@ SOFT_SIZE_THRESHOLD = 5.0
 LARGE_FILE_MARKER = 'LARGE_FILE'
 # No jira marker in commit message
 NO_JIRA_MARKER = 'NO_JIRA'
+# Copilot Autofix co-author in commit message description
+copilot_autofix_coauthor_pattern = re.compile(
+    r'^Co-authored-by:\s+.*<\d+\+Copilot@users\.noreply\.github\.com>$',
+    re.MULTILINE,
+)
 # A marker to represent it's a change we don't want to commit
 DO_NOT_COMMIT = 'do not' + ' commit'
 # Check file content if it has these extensions
@@ -854,11 +859,16 @@ def check_commit_msg(message, files, repo):
         # Do not check for JIRA in opensource repo as we don't want to require external contributors to do this
         return 0
 
-    if NO_JIRA_MARKER not in message:
-        if jira_id_pattern.search(message) is None:
-            _fail('Every commit should contain a Jira issue ID or the text '
-                  f'{NO_JIRA_MARKER}')
-            return 1
+    if (
+        NO_JIRA_MARKER not in message
+        and copilot_autofix_coauthor_pattern.search(message) is None
+        and jira_id_pattern.search(message) is None
+    ):
+        _fail(
+            'Every commit should contain a Jira issue ID, '
+            f'{NO_JIRA_MARKER}, or be a Copilot Autofix commit'
+        )
+        return 1
 
     for filename in files:
         size = Path(filename).stat().st_size / 1024**2
@@ -904,6 +914,11 @@ class TestCheckCommitMessage(unittest.TestCase):
         _test('ABC-1234')
         _test('Some changes for ABC-1234 ticket')
         _test('Trivial change NO_JIRA')
+        _test(
+            'Trivial change\n\n'
+            'Co-authored-by: Copilot Autofix powered by AI '
+            '<175728472+Copilot@users.noreply.github.com>'
+        )
         _test("Merge branch 'main' into my_branch")
         _test("Merge branch 'branch_1' into branch_2")
         _test("Merge branch 'jira_pyapi_123_abc' of github.com:ccdc-confidential/cpp-apps-main into jira_pyapi_123_abc")
