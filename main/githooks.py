@@ -26,7 +26,7 @@ LARGE_FILE_MARKER = 'LARGE_FILE'
 # No jira marker in commit message
 NO_JIRA_MARKER = 'NO_JIRA'
 # Copilot Autofix co-author in commit message description
-COPILOT_AUTOFIX = re.compile(
+copilot_autofix_coauthor_pattern = re.compile(
     r'^Co-authored-by:\s+.*<\d+\+Copilot@users\.noreply\.github\.com>$',
     re.MULTILINE,
 )
@@ -861,7 +861,7 @@ def check_commit_msg(message, files, repo):
 
     if (
         NO_JIRA_MARKER not in message
-        and COPILOT_AUTOFIX.search(message) is None
+        and copilot_autofix_coauthor_pattern.search(message) is None
         and jira_id_pattern.search(message) is None
     ):
         _fail(

@@ -15,7 +15,7 @@ The commit will be flagged if it includes certain text files with:
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
-size of new or modiffied files exceeds a threshold.
+size of new or modified files exceeds a threshold.
 
 
 # Github action
