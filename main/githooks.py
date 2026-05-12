@@ -854,6 +854,11 @@ def check_commit_msg(message, files, repo):
         # Do not check for JIRA in opensource repo as we don't want to require external contributors to do this
         return 0
 
+    
+    # Check for Conventional Commits compliance
+    if check_conventional_commit(message):
+        return 1
+
     if NO_JIRA_MARKER not in message:
         if jira_id_pattern.search(message) is None:
             _fail('Every commit should contain a Jira issue ID or the text '
@@ -872,6 +877,25 @@ def check_commit_msg(message, files, repo):
 
     return 0
 jira_id_pattern = re.compile(r'\b[A-Z]{2,8}-[0-9]{1,5}\b')
+
+
+
+def check_conventional_commit(message):
+    '''Check if the commit message follows the Conventional Commits standard.'''
+    # Conventional Commits: type(scope?): subject\n\nbody\n\nfooter
+    # type: feat, fix, chore, docs, style, refactor, perf, test, build, ci, revert, etc.
+    pattern = re.compile(
+        r'^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)'  # type
+        r'(\([\w\-]+\))?'  # optional scope
+        r'!?: '  # optional breaking change indicator and colon
+        r'.+'  # subject
+    )
+    first_line = message.split('\n', 1)[0]
+    if not pattern.match(first_line):
+        _fail('Commit message does not follow Conventional Commits standard.\n'
+              'See https://www.conventionalcommits.org/en/v1.0.0/')
+        return 1
+    return 0
 
 
 class TestJiraIDPattern(unittest.TestCase):
