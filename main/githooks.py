@@ -855,9 +855,12 @@ def check_commit_msg(message, files, repo):
         return 0
 
     
-    # Check for Conventional Commits compliance
-    if check_conventional_commit(message):
-        return 1
+    # Check for Conventional Commits compliance.
+    # Opt-in per repo: commit an empty marker file named
+    # `.conventional-commits` at the repo root.
+    if _conventional_commits_enabled():
+        if check_conventional_commit(message):
+            return 1
 
     if NO_JIRA_MARKER not in message:
         if jira_id_pattern.search(message) is None:
@@ -880,20 +883,35 @@ jira_id_pattern = re.compile(r'\b[A-Z]{2,8}-[0-9]{1,5}\b')
 
 
 
+def _conventional_commits_enabled():
+    '''Return True if the repo opts in to Conventional Commits enforcement.
+
+    Opt-in is signalled by a `.conventional-commits` file at the repo root.
+    '''
+    try:
+        repo_root = _get_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    except subprocess.CalledProcessError:
+        return False
+    return (Path(repo_root) / '.conventional-commits').is_file()
+
+
 def check_conventional_commit(message):
-    '''Check if the commit message follows the Conventional Commits standard.'''
-    # Conventional Commits: type(scope?): subject\n\nbody\n\nfooter
-    # type: feat, fix, chore, docs, style, refactor, perf, test, build, ci, revert, etc.
+    '''Check if the commit message follows the Angular Conventional Commits standard.'''
+    # Angular Conventional Commits header: type(scope?)!?: subject
+    # Allowed types from @commitlint/config-angular:
+    #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
     pattern = re.compile(
-        r'^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)'  # type
-        r'(\([\w\-]+\))?'  # optional scope
-        r'!?: '  # optional breaking change indicator and colon
+        r'^(BREAKING CHANGE|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
+        r'(\([\w\-\.\/]+\))?'  # optional scope
+        r'!?: '  # optional breaking change indicator and required ": "
         r'.+'  # subject
     )
     first_line = message.split('\n', 1)[0]
     if not pattern.match(first_line):
-        _fail('Commit message does not follow Conventional Commits standard.\n'
-              'See https://www.conventionalcommits.org/en/v1.0.0/')
+        _fail('Commit message does not follow the Angular Conventional '
+              'Commits standard.\n'
+              'Expected: <type>(<scope>)?!?: <subject>\n'
+              'See https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md')
         return 1
     return 0
 
