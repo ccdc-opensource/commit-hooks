@@ -867,7 +867,6 @@ def check_commit_msg(message, files, repo):
         if check_conventional_commit(message):
             return 1
         
-        
     if (
         NO_JIRA_MARKER not in message
         and copilot_autofix_coauthor_pattern.search(message) is None
@@ -877,14 +876,6 @@ def check_commit_msg(message, files, repo):
             'Every commit should contain a Jira issue ID, '
             f'{NO_JIRA_MARKER}, or be a Copilot Autofix commit'
         )
-    if (
-        NO_JIRA_MARKER not in message
-        and copilot_autofix_coauthor_pattern.search(message) is None
-        and jira_id_pattern.search(message) is None
-    ):
-        _fail(
-            'Every commit should contain a Jira issue ID, '
-            f'{NO_JIRA_MARKER}, or be a Copilot Autofix commit'
         return 1
 
     for filename in files:
