@@ -897,20 +897,21 @@ def _conventional_commits_enabled():
 
 def check_conventional_commit(message):
     '''Check if the commit message follows the Angular Conventional Commits standard.'''
-    # Angular Conventional Commits header: type(scope?)!?: subject
+    # Angular Conventional Commits header: type(scope?): subject
     # Allowed types from @commitlint/config-angular:
     #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
+    # Note: Angular does not use the `!` breaking-change marker in the header;
     pattern = re.compile(
         r'^(BREAKING CHANGE|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
         r'(\([\w\-\.\/]+\))?'  # optional scope
-        r'!?: '  # optional breaking change indicator and required ": "
+        r': '  # required ": "
         r'.+'  # subject
     )
     first_line = message.split('\n', 1)[0]
     if not pattern.match(first_line):
         _fail('Commit message does not follow the Angular Conventional '
               'Commits standard.\n'
-              'Expected: <type>(<scope>)?!?: <subject>\n'
+              'Expected: <type>(<scope>)?: <subject>\n'
               'See https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md')
         return 1
     return 0
