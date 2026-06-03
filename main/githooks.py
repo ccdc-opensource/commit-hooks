@@ -858,7 +858,19 @@ def check_commit_msg(message, files, repo):
     if re.match(r'^ccdc-opensource/', repo):
         # Do not check for JIRA in opensource repo as we don't want to require external contributors to do this
         return 0
-
+    
+        
+    # Check for Conventional Commits compliance.
+    # Opt-in per repo: commit an empty marker file named
+    # `.conventional-commits` at the repo root.
+    if _conventional_commits_enabled():
+        if not conventional_commit_present(message):
+            _fail('Commit message does not follow the Angular Conventional '
+                  'Commits standard.\n'
+                  'Expected: <type>(<scope>)?: <subject>\n'
+                  'See https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md')
+            return 1
+        
     if (
         NO_JIRA_MARKER not in message
         and copilot_autofix_coauthor_pattern.search(message) is None
@@ -882,6 +894,32 @@ def check_commit_msg(message, files, repo):
 
     return 0
 jira_id_pattern = re.compile(r'\b[A-Z]{2,8}-[0-9]{1,5}\b')
+
+
+
+def _conventional_commits_enabled():
+    '''Return True if the repo opts in to Conventional Commits enforcement.
+
+    Opt-in is signalled by a `.conventional-commits` file at the repo root.
+    '''
+    repo_root = _get_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    return (Path(repo_root) / '.conventional-commits').is_file()
+
+
+def conventional_commit_present(message):
+    '''Return True if the commit message follows the Angular Conventional Commits standard.'''
+    # Angular Conventional Commits header: type(scope?): subject
+    # Allowed types from @commitlint/config-angular:
+    #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
+    # Note: Angular does not use the `!` breaking-change marker in the header;
+    pattern = re.compile(
+        r'^(BREAKING CHANGE|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
+        r'(\([\w\-\.\/]+\))?'  # optional scope
+        r': '  # required ": "
+        r'.+'  # subject
+    )
+    first_line = message.split('\n', 1)[0]
+    return pattern.match(first_line) is not None
 
 
 class TestJiraIDPattern(unittest.TestCase):
