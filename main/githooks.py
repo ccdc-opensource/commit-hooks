@@ -864,7 +864,11 @@ def check_commit_msg(message, files, repo):
     # Opt-in per repo: commit an empty marker file named
     # `.conventional-commits` at the repo root.
     if _conventional_commits_enabled():
-        if check_conventional_commit(message):
+        if not conventional_commit_present(message):
+            _fail('Commit message does not follow the Angular Conventional '
+                  'Commits standard.\n'
+                  'Expected: <type>(<scope>)?: <subject>\n'
+                  'See https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md')
             return 1
         
     if (
@@ -905,8 +909,8 @@ def _conventional_commits_enabled():
     return (Path(repo_root) / '.conventional-commits').is_file()
 
 
-def check_conventional_commit(message):
-    '''Check if the commit message follows the Angular Conventional Commits standard.'''
+def conventional_commit_present(message):
+    '''Return True if the commit message follows the Angular Conventional Commits standard.'''
     # Angular Conventional Commits header: type(scope?): subject
     # Allowed types from @commitlint/config-angular:
     #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
@@ -918,13 +922,7 @@ def check_conventional_commit(message):
         r'.+'  # subject
     )
     first_line = message.split('\n', 1)[0]
-    if not pattern.match(first_line):
-        _fail('Commit message does not follow the Angular Conventional '
-              'Commits standard.\n'
-              'Expected: <type>(<scope>)?: <subject>\n'
-              'See https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md')
-        return 1
-    return 0
+    return pattern.match(first_line) is not None
 
 
 class TestJiraIDPattern(unittest.TestCase):
