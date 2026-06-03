@@ -902,10 +902,7 @@ def _conventional_commits_enabled():
 
     Opt-in is signalled by a `.conventional-commits` file at the repo root.
     '''
-    try:
-        repo_root = _get_output(['git', 'rev-parse', '--show-toplevel']).strip()
-    except subprocess.CalledProcessError:
-        return False
+    repo_root = _get_output(['git', 'rev-parse', '--show-toplevel']).strip()
     return (Path(repo_root) / '.conventional-commits').is_file()
 
 
