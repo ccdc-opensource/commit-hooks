@@ -913,7 +913,7 @@ def conventional_commit_present(message):
     #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
     # Note: Angular does not use the `!` breaking-change marker in the header;
     pattern = re.compile(
-        r'^(BREAKING CHANGE|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
+        r'^(BREAKING CHANGE|break|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
         r'(\([\w\-\.\/]+\))?'  # optional scope
         r': '  # required ": "
         r'.+'  # subject
