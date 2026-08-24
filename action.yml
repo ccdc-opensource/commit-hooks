@@ -8,7 +8,20 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - run: python3 $GITHUB_ACTION_PATH/main.py
+    - name: Checkout Repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install copywrite
+      uses: hashicorp/setup-copywrite@v1.1.2
+
+    - name: Validate Header Compliance
+      run: copywrite headers --plan
+      shell: bash
+
+    - name: Run file compliance check
+      run: python3 $GITHUB_ACTION_PATH/main.py
       shell: bash
       env:
         INPUT_COMMITMESSAGE: ${{ inputs.commitMessage }}

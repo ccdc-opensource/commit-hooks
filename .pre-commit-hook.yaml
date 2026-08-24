@@ -1,0 +1,12 @@
+- id: ccdc-copywrite-check
+  name: CCDC Copywrite header check
+  entry: hooks/copywrite_check.sh
+  language: script
+  pass_filenames: false
+
+- id: ccdc-copywrite-fix
+  name: CCDC Copywrite header fix
+  entry: hooks/copywrite_fix.sh
+  language: script
+  pass_filenames: false
+  stages: [manual]
