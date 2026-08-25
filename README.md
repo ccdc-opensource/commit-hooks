@@ -12,7 +12,7 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
-* Missing or non-compliant CCDC copyright and license headers (via HashiCorp Copywrite)
+* Missing or non-compliant CCDC copyright and license headers when using the GitHub Action or `pre-commit` integration
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the

@@ -27,5 +27,4 @@
   description: Automatically format and add copyright and license headers using Copywrite
   entry: main/hooks/copywrite_fix.sh
   language: script
-  pass_filenames: false
-  always_run: true
+  pass_filenames: true
