@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # This code is Copyright (C) 2026 The Cambridge Crystallographic Data Centre
 # (CCDC) of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC.
@@ -12,28 +13,12 @@
 # exclusion or limitation is prohibited, void or unenforceable under governing
 # law.
 #
-name: CCDC File Checks
-author: CCDC
-description: Check changed files for compliance
-inputs:
-  commitMessage:
-    description: 'The commit message'
-    required: true
-runs:
-  using: "composite"
-  steps:
-    - name: Install copywrite
-      uses: hashicorp/setup-copywrite@v1.1.3
+set -euo pipefail
+command -v copywrite >/dev/null 2>&1 || { echo "copywrite not found on PATH"; exit 1; }
 
-    - name: Validate Header Compliance
-      run: copywrite headers --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" --plan
-      shell: bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+CONFIG_PATH="${HOOK_ROOT}/main/copywrite/.copywrite.hcl"
 
-    - name: Run file compliance check
-      run: python3 $GITHUB_ACTION_PATH/main.py
-      shell: bash
-      env:
-        INPUT_COMMITMESSAGE: ${{ inputs.commitMessage }}
-branding:
-  icon: 'check-square'
-  color: 'green'
+export COPYWRITE_HOOK_ROOT="${HOOK_ROOT}"
+copywrite headers --config="${CONFIG_PATH}"
