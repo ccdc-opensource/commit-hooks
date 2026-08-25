@@ -25,10 +25,10 @@ project {
 
 rule {
   paths = ["**/*.py", "**/*.sh", "**/*.bash", "**/*.yaml", "**/*.yml"]
-  license_header = "main/copywrite/headers/ccdc_hash.tmpl"
+  license_header = "${COPYWRITE_HOOK_ROOT}/main/copywrite/headers/ccdc_hash.tmpl"
 }
 
 rule {
   paths = ["**/*.js", "**/*.ts", "**/*.cs", "**/*.cpp", "**/*.cxx", "**/*.cc", "**/*.h", "**/*.hpp"]
-  license_header = "main/copywrite/headers/ccdc_slash.tmpl"
+  license_header = "${COPYWRITE_HOOK_ROOT}/main/copywrite/headers/ccdc_slash.tmpl"
 }
