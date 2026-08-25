@@ -1,4 +1,4 @@
-schema_version = "1"
+schema_version = 1
 
 project {
   copyright_holder = "The Cambridge Crystallographic Data Centre (CCDC)"
@@ -25,10 +25,10 @@ project {
 
 rule {
   paths = ["**/*.py", "**/*.sh", "**/*.bash", "**/*.yaml", "**/*.yml"]
-  license_header = "copywrite/headers/ccdc_hash.tmpl"
+  license_header = "main/copywrite/headers/ccdc_hash.tmpl"
 }
 
 rule {
   paths = ["**/*.js", "**/*.ts", "**/*.cs", "**/*.cpp", "**/*.cxx", "**/*.cc", "**/*.h", "**/*.hpp"]
-  license_header = "copywrite/headers/ccdc_slash.tmpl"
+  license_header = "main/copywrite/headers/ccdc_slash.tmpl"
 }
