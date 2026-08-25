@@ -78,7 +78,7 @@ This enables the CCDC commit hooks for all repositories on your machine.
 
 This repository also provides hooks compatible with the
 [`pre-commit`](https://pre-commit.com/) framework for managing copyright
-headers using [copywrite (github link)](https://github.com/hashicorp/copywrite).
+headers using [HashiCorp Copywrite](https://github.com/hashicorp/copywrite).
 
 ### Available Hooks
 
@@ -128,7 +128,7 @@ go install github.com/hashicorp/copywrite@latest
 
 Binary releases are available from:
 
-https://github.com/hashicorp/copywrite/releases
+[HashiCorp Copywrite Releases](https://github.com/hashicorp/copywrite/releases)
 
 ### Recommended Usage
 
