@@ -12,13 +12,19 @@
 # supply of this code by CCDC, its servants or agents, except where such
 # exclusion or limitation is prohibited, void or unenforceable under governing
 # law.
-#
-set -euo pipefail
-command -v copywrite >/dev/null 2>&1 || { echo "copywrite not found on PATH"; exit 1; }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CONFIG_PATH="${HOOK_ROOT}/main/copywrite/.copywrite.hcl"
+- id: copywrite-check
+  name: copywrite-check
+  description: Validate copyright and license header compliance using Copywrite
+  entry: main/hooks/copywrite_check.sh
+  language: script
+  pass_filenames: false
+  always_run: true
 
-export COPYWRITE_HOOK_ROOT="${HOOK_ROOT}"
-copywrite headers --config="${CONFIG_PATH}"
+- id: copywrite-fix
+  name: copywrite-fix
+  description: Automatically format and add copyright and license headers using Copywrite
+  entry: main/hooks/copywrite_fix.sh
+  language: script
+  pass_filenames: false
+  always_run: true

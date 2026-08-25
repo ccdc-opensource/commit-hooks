@@ -6,6 +6,8 @@ project {
   header_ignore = [
     ".git/**",
     ".github/**",
+    "test/**",
+    "tests/**",
     "**/bin/**",
     "**/obj/**",
     "**/packages/**",

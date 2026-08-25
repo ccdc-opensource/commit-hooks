@@ -12,6 +12,7 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
+* Missing or non-compliant CCDC copyright and license headers (via HashiCorp Copywrite)
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
@@ -62,9 +63,82 @@ A set of hooks include:
 * pre-commit
 * pre-merge-commit
 
-## Setting up
-1. Clone this repo
-1. `git config --global core.hooksPath <this repo location>/main`
+## Setting up Core Git Hooks
+
+1. Clone this repository.
+2. Configure Git to use the hooks:
+
+```bash
+git config --global core.hooksPath <path-to-cloned-repo>/main
+```
+
+This enables the CCDC commit hooks for all repositories on your machine.
+
+## Using with `pre-commit`
+
+This repository also provides hooks compatible with the
+[`pre-commit`](https://pre-commit.com/) framework for managing copyright
+headers using [copywrite (github link)](https://github.com/hashicorp/copywrite).
+
+### Available Hooks
+
+* **`copywrite-fix`** *(recommended for local development)*:
+  Automatically inserts or updates the CCDC copyright and licence headers
+  in newly added or modified files.
+
+* **`copywrite-check`**:
+  Validates copyright and licence headers across tracked files and fails if
+  any files are non-compliant. This hook is well suited for CI/CD pipelines
+  and verification workflows.
+
+### Example Configuration
+
+Add the following to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/ccdc-opensource/commit-hooks
+    rev: <tag-or-sha>
+    hooks:
+      # Automatically inserts or updates headers
+      - id: copywrite-fix
+
+      # Optional: validates compliance after formatting
+      # - id: copywrite-check
+```
+
+### Copywrite Prerequisite
+
+The `copywrite-check` and `copywrite-fix` hooks require the `copywrite`
+CLI to be available on your `PATH`.
+
+**macOS / Linux (Homebrew)**
+
+```bash
+brew install hashicorp/tap/copywrite
+```
+
+**Go**
+
+```bash
+go install github.com/hashicorp/copywrite@latest
+```
+
+**Direct download**
+
+Binary releases are available from:
+
+https://github.com/hashicorp/copywrite/releases
+
+### Recommended Usage
+
+For the best developer experience:
+
+* Use **`copywrite-fix`** locally to automatically insert or update headers.
+* Use **`copywrite-check`** in CI/CD pipelines to enforce compliance.
+
+This ensures that copyright and licence headers are automatically maintained
+while also preventing non-compliant changes from being merged.
 
 ## Recommended settings
 ### To ensure the line endings are correctly converted:
