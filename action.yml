@@ -64,6 +64,7 @@ runs:
           copywrite headers \
             --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
             --plan \
+            -- \
             "${CHANGED_FILES[@]}"
         else
           echo "No added or modified files found to check for header compliance."
