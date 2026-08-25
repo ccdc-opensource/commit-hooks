@@ -1,8 +1,10 @@
-This repository contains files that can be used as a github action and local
-git hooks.
+This repository provides code quality and compliance tooling that serves three purposes:
 
-It does a few checks on source code to ensure compliance with some general
-CCDC coding standard.
+1. **Native Git Hooks** (`main/`): Local hooks for standard Git workflow (`commit-msg`, `pre-commit`, `pre-merge-commit`).
+2. **`pre-commit` Integration** (`.pre-commit-hooks.yaml`): Hooks for the [`pre-commit`](https://pre-commit.com/) framework (`copywrite-fix`, `copywrite-check`).
+3. **GitHub Action** (`action.yml`): Composite GitHub Action for CI workflows to validate copyright headers and repository compliance on PRs/commits.
+
+It does a few checks on source code to ensure compliance with general CCDC coding standards.
 
 The commit will be flagged if it includes certain text files with:
 
@@ -19,13 +21,17 @@ ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
 size of new or modified files exceeds a threshold.
 
 
-# Github action
+# GitHub Actions
+
+This repository provides a composite GitHub Action for validating copyright
+headers and file compliance rules in CI.
 
 ## Usage
+
 ```yaml
 - uses: ccdc-opensource/commit-hooks@v7
   with:
-    commitMessage: 'The commit message'
+    commitMessage: ${{ github.event.head_commit.message }}
 ```
 
 ## Scenarios
@@ -43,14 +49,14 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Get the commit message
         run: |
           echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
         shell: bash
-      - uses: ccdc-opensource/commit-hooks@v7
+      - uses: ccdc-opensource/commit-hooks@v8
         with:
           commitMessage: ${{ env.commit_message }}
 ```
