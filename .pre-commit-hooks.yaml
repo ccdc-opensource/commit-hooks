@@ -1,12 +1,16 @@
 - id: ccdc-copywrite-check
   name: CCDC Copywrite header check
   entry: main/hooks/copywrite_check.sh
-  language: script
+  language: python
   pass_filenames: false
+  additional_dependencies: 
+   - copywrite==1.1.3
 
 - id: ccdc-copywrite-fix
   name: CCDC Copywrite header fix
   entry: main/hooks/copywrite_fix.sh
-  language: script
+  language: python
   pass_filenames: false
   stages: [manual]
+  additional_dependencies: 
+  - copywrite==1.1.3
