@@ -32,9 +32,42 @@ runs:
         COPYWRITE_HOOK_ROOT: ${{ github.action_path }}
       run: |
         copywrite --version
-        copywrite headers \
-          --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
-          --plan
+
+        CHANGED_FILES=()
+        if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+          DIFF_REF="origin/${GITHUB_BASE_REF}"
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            DIFF_REF="remotes/origin/${GITHUB_BASE_REF}"
+          fi
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            DIFF_REF="${GITHUB_BASE_REF}"
+          fi
+          if git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            while IFS= read -r file; do
+              [ -n "$file" ] && CHANGED_FILES+=("$file")
+            done < <(git diff --name-only --diff-filter=d "${DIFF_REF}...HEAD")
+          fi
+        else
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            while IFS= read -r file; do
+              [ -n "$file" ] && CHANGED_FILES+=("$file")
+            done < <(git diff --name-only --diff-filter=d HEAD~1..HEAD)
+          else
+            while IFS= read -r file; do
+              [ -n "$file" ] && CHANGED_FILES+=("$file")
+            done < <(git diff --name-only --diff-filter=d HEAD)
+          fi
+        fi
+
+        if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
+          echo "Checking ${#CHANGED_FILES[@]} changed file(s) for header compliance..."
+          copywrite headers \
+            --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
+            --plan \
+            "${CHANGED_FILES[@]}"
+        else
+          echo "No added or modified files found to check for header compliance."
+        fi
 
     - name: Run file compliance check
       shell: bash

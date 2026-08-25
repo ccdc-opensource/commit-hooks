@@ -22,4 +22,8 @@ HOOK_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CONFIG_PATH="${SCRIPT_DIR}/../copywrite/.copywrite.hcl"
 
 export COPYWRITE_HOOK_ROOT="${HOOK_ROOT}"
-copywrite headers --config="${CONFIG_PATH}" --plan
+if [ $# -gt 0 ]; then
+  copywrite headers --config="${CONFIG_PATH}" --plan "$@"
+else
+  copywrite headers --config="${CONFIG_PATH}" --plan
+fi
