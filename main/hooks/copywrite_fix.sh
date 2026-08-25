@@ -23,7 +23,7 @@ CONFIG_PATH="${SCRIPT_DIR}/../copywrite/.copywrite.hcl"
 
 export COPYWRITE_HOOK_ROOT="${HOOK_ROOT}"
 if [ $# -gt 0 ]; then
-  copywrite headers --config="${CONFIG_PATH}" "$@"
+  copywrite headers --config="${CONFIG_PATH}" -- "$@"
 else
   copywrite headers --config="${CONFIG_PATH}"
 fi
