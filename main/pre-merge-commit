@@ -35,4 +35,4 @@ case "$OSTYPE" in
     ;;
 esac
 
-"${PYTHON_EXECUTABLE[@]}" "${BASH_SOURCE[0]%.*}.py" "$@"
+"${PYTHON_EXECUTABLE[@]}" "${BASH_SOURCE[0]}.py" "$@"
