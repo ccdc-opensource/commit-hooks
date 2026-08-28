@@ -27,6 +27,7 @@ from unittest.mock import patch
 import os
 import platform
 import re
+import shutil
 import subprocess
 import unittest
 import sys
@@ -982,6 +983,74 @@ class TestCheckCommitMessage(unittest.TestCase):
         _test('Close but no cigar abc-1234', False)
 
 
+def run_copywrite(files):
+    '''Run copywrite to automatically check or fix license headers.
+
+    Configurable via git config:
+      - `git config --global hooks.copywrite true|false` (default: false, opt-in)
+      - `git config --global hooks.copywriteMode fix|check` (default: fix)
+        - fix: automatically adds/updates headers and restages files
+        - check: checks header compliance and warns/fails without modifying
+
+    If copywrite is not installed and the hook is enabled, print a soft warning and return 0 (do not block commit).
+    '''
+    if not files:
+        return 0
+
+    # Opt-in: only run if explicitly enabled in git config
+    enabled_setting = get_config_setting('hooks.copywrite')
+    if enabled_setting is None or enabled_setting.lower() not in ['true', '1', 'yes', 'on']:
+        return 0
+
+    copywrite_exe = shutil.which('copywrite')
+    if not copywrite_exe:
+        print(' WARNING: "copywrite" not found on PATH. Skipping copyright header check.')
+        print(' To enable automatic copyright formatting, install copywrite:')
+        print('   - Windows: choco install copywrite')
+        print('   - macOS: brew install hashicorp/tap/copywrite')
+        print('   - Linux: go install github.com/hashicorp/copywrite@latest')
+        return 0
+
+    hook_root = Path(__file__).resolve().parent.parent
+    config_path = hook_root / 'main' / 'copywrite' / '.copywrite.hcl'
+    if not config_path.is_file():
+        return 0
+
+    env = os.environ.copy()
+    env['COPYWRITE_HOOK_ROOT'] = str(hook_root)
+
+    mode_setting = get_config_setting('hooks.copywriteMode')
+    is_check_mode = mode_setting is not None and mode_setting.lower() in ['check', 'plan', 'verify']
+
+    cmd = [copywrite_exe, 'headers', f'--config={config_path}']
+    if is_check_mode:
+        cmd.append('--plan')
+    cmd.extend(files)
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env
+        )
+        if proc.returncode != 0:
+            if is_check_mode:
+                _fail(f'Copyright header check failed:\n{proc.stdout or proc.stderr}')
+                return 1
+            else:
+                print(f' Copywrite warning:\n{proc.stderr.strip()}')
+        else:
+            if not is_check_mode:
+                # Re-stage any files that copywrite updated
+                subprocess.run(['git', 'add'] + files, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print(f' WARNING: Failed to run copywrite: {e}')
+
+    return 0
+
+
 def commit_hook(merge=False):
     retval = 0
     files = get_commit_files()
@@ -994,14 +1063,19 @@ def commit_hook(merge=False):
         retval += check_do_not_merge(files['M'])
         retval += check_do_not_merge(files['A'], new_files=True)
     else:
+        staged_files = files['M'] + files['A']
+
+        print(' Check and update copyright headers ...')
+        retval += run_copywrite(staged_files)
+
         print(' Check filenames ...')
-        retval += check_filenames(files['M'] + files['A'])
+        retval += check_filenames(staged_files)
 
         print(' Check line endings ...')
-        retval += check_eol(files['M'] + files['A'])
+        retval += check_eol(staged_files)
 
         print(' Check file content ...')
-        retval += check_content(files['M'] + files['A'])
+        retval += check_content(staged_files)
 
     return retval
 

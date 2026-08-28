@@ -1,8 +1,7 @@
-This repository provides code quality and compliance tooling that serves three purposes:
+This repository provides code quality and compliance tooling for CCDC repositories:
 
-1. **Native Git Hooks** (`main/`): Local hooks for standard Git workflow (`commit-msg`, `pre-commit`, `pre-merge-commit`).
-2. **`pre-commit` Integration** (`.pre-commit-hooks.yaml`): Hooks for the [`pre-commit`](https://pre-commit.com/) framework (`copywrite-fix`, `copywrite-check`).
-3. **GitHub Action** (`action.yml`): Composite GitHub Action for CI workflows to validate copyright headers and repository compliance on PRs/commits.
+1. **Native Git Hooks** (`main/`): Local hooks configured globally (`commit-msg`, `pre-commit`, `pre-merge-commit`) for standard Git workflows.
+2. **GitHub Action** (`action.yml`): Composite GitHub Action for CI workflows to validate copyright headers and repository compliance on PRs/commits.
 
 It does a few checks on source code to ensure compliance with general CCDC coding standards.
 
@@ -14,7 +13,7 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
-* Missing or non-compliant CCDC copyright and license headers when using the GitHub Action or `pre-commit` integration
+* Missing or non-compliant CCDC copyright and license headers (when using the GitHub Action or local copywrite integration)
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
@@ -34,140 +33,39 @@ headers and file compliance rules in CI.
     commitMessage: ${{ github.event.head_commit.message }}
 ```
 
-## Workflow Template
+A complete workflow template for CI is available in [templates/compliance.yml](templates/compliance.yml).
 
-A ready to use template is available in [`templates/compliance.yml`](templates/compliance.yml).
+# Native Git Hooks
 
-You can copy this file directly into your repository at `.github/workflows/compliance.yml`, or distribute it across your organisation via your centralised GitHub repository management system.
-
-```yaml
-name: Header & Compliance Checks
-
-on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main ]
-
-jobs:
-  compliance-check:
-    name: Validate Headers & Code Compliance
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-
-      - name: Extract commit message
-        run: |
-          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after || github.sha }})" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Run CCDC Commit Hooks & Header Checks
-        uses: ccdc-opensource/commit-hooks@v8
-        with:
-          commitMessage: ${{ env.commit_message }}
-```
-
-# commit-hooks
-You can use this as git hooks for local repositories.
-
-A set of hooks include:
-* commit-msg
-* pre-commit
-* pre-merge-commit
-
-## Setting up Core Git Hooks
+To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers) globally for all repositories on your machine:
 
 1. Clone this repository.
-2. Configure Git to use the hooks:
+2. Run:
+   ```bash
+   git config --global core.hooksPath <path-to-cloned-repo>/main
+   ```
+3. (Optional) Install `copywrite` to automatically add and format CCDC copyright headers on commit:
+   * **Windows:** `choco install copywrite`
+   * **macOS:** `brew install hashicorp/tap/copywrite`
+   * **Linux:** `go install github.com/hashicorp/copywrite@latest`
 
-```bash
-git config --global core.hooksPath <path-to-cloned-repo>/main
-```
+> **Note:** If `copywrite` is not installed on your machine, native hooks will continue to run all other standard checks and display a gentle warning without failing your commit.
 
-This enables the CCDC commit hooks for all repositories on your machine.
+## Configuring Copywrite Behavior
 
-## Using with `pre-commit`
+Developers can customise the copywrite hook using Git configuration:
 
-This repository also provides hooks compatible with the
-[`pre-commit`](https://pre-commit.com/) framework for managing copyright
-headers using [HashiCorp Copywrite](https://github.com/hashicorp/copywrite).
+* **Enable / Disable Copywrite:**
+  ```bash
+  git config --global hooks.copywrite true   # opt-in: enable copywrite integration
+  git config --global hooks.copywrite false  # default: disabled
+  ```
 
-### Available Hooks
-
-* **`copywrite-fix`** *(recommended for local development)*:
-  Automatically inserts or updates the CCDC copyright and licence headers
-  in newly added or modified files.
-
-* **`copywrite-check`**:
-  Validates copyright and licence headers across tracked files and fails if
-  any files are non-compliant. This hook is well suited for CI/CD pipelines
-  and verification workflows.
-
-### Example Configuration
-
-A starter config template is available in [`templates/.pre-commit-config.yaml`](templates/.pre-commit-config.yaml).
-
-Add the following to your `.pre-commit-config.yaml`:
-
-```yaml
-repos:
-  - repo: https://github.com/ccdc-opensource/commit-hooks
-    rev: <tag-or-sha>
-    hooks:
-      # Automatically inserts or updates headers
-      - id: copywrite-fix
-
-      # Optional: validates compliance after formatting
-      # - id: copywrite-check
-```
-
-### Copywrite Prerequisite
-
-The `copywrite-check` and `copywrite-fix` hooks require the `copywrite`
-CLI to be available on your `PATH`.
-
-**Windows (Chocolatey)**
-
-```powershell
-choco install copywrite
-```
-
-**macOS / Linux (Homebrew)**
-
-```bash
-brew install hashicorp/tap/copywrite
-```
-
-**Go**
-
-```bash
-go install github.com/hashicorp/copywrite@latest
-```
-
-**Direct download**
-
-Binary releases are available from:
-
-[HashiCorp Copywrite Releases](https://github.com/hashicorp/copywrite/releases)
-
-### Recommended Usage
-
-For the best developer experience:
-
-* Use **`copywrite-fix`** locally to automatically insert or update headers.
-* Use **`copywrite-check`** in CI/CD pipelines to enforce compliance.
-
-This ensures that copyright and licence headers are automatically maintained
-while also preventing non-compliant changes from being merged.
+* **Set Mode (`fix` vs `check`):**
+  ```bash
+  git config --global hooks.copywriteMode fix    # default: automatically inserts/updates headers on commit
+  git config --global hooks.copywriteMode check  # read-only check (warns/fails if headers are missing)
+  ```
 
 ## Recommended settings
 ### To ensure the line endings are correctly converted:
