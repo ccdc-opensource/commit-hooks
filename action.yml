@@ -1,3 +1,18 @@
+#
+# This code is Copyright (C) 2026 The Cambridge Crystallographic Data Centre (CCDC)
+# of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC. This
+# code may not be used, reproduced, translated, modified, disassembled or
+# copied, except in accordance with a valid licence agreement with CCDC and
+# may NOT be disclosed or redistributed in any form, either in whole or in
+# part, to any third party. All copies of this code made in accordance with a
+# valid licence agreement as referred to above must contain this copyright
+# notice.
+#
+# No representations, warranties, or liabilities are expressed or implied in
+# the supply of this code by CCDC, its servants or agents, except where such
+# exclusion or limitation is prohibited, void or unenforceable under governing
+# law.
+#
 name: CCDC File Checks
 author: CCDC
 description: Check changed files for compliance
@@ -5,13 +20,85 @@ inputs:
   commitMessage:
     description: 'The commit message'
     required: true
+  licenseCheck:
+    description: 'Validate CCDC copyright and license headers on changed files (true/false)'
+    required: false
+    default: 'false'
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - run: python3 $GITHUB_ACTION_PATH/main.py
+    - name: Install copywrite
+      if: ${{ inputs.licenseCheck == 'true' }}
+      uses: hashicorp/setup-copywrite@v1.1.3
+
+    - name: Validate Header Compliance
+      if: ${{ inputs.licenseCheck == 'true' }}
+      shell: bash
+      env:
+        COPYWRITE_HOOK_ROOT: ${{ github.action_path }}
+        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+      run: |
+        copywrite --version
+
+        CHANGED_FILES=()
+        if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+          DIFF_REF="origin/${GITHUB_BASE_REF}"
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            DIFF_REF="remotes/origin/${GITHUB_BASE_REF}"
+          fi
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            DIFF_REF="${GITHUB_BASE_REF}"
+          fi
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            echo "Unable to resolve pull request base ref: ${GITHUB_BASE_REF}" >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff --name-only --diff-filter=d "${DIFF_REF}...HEAD")
+        elif [ "${GITHUB_EVENT_NAME:-}" = "push" ]; then
+          if [[ "${GITHUB_EVENT_BEFORE:-}" =~ ^0+$ ]]; then
+            while IFS= read -r file; do
+              [ -n "$file" ] && CHANGED_FILES+=("$file")
+            done < <(git diff-tree --root --no-commit-id --name-only --diff-filter=d -r HEAD)
+          else
+            if [ -z "${GITHUB_EVENT_BEFORE:-}" ] || ! git rev-parse --verify "${GITHUB_EVENT_BEFORE}^{commit}" >/dev/null 2>&1; then
+              echo "Unable to resolve push baseline: ${GITHUB_EVENT_BEFORE:-<empty>}" >&2
+              exit 1
+            fi
+            while IFS= read -r file; do
+              [ -n "$file" ] && CHANGED_FILES+=("$file")
+            done < <(git diff --name-only --diff-filter=d "${GITHUB_EVENT_BEFORE}..HEAD")
+          fi
+        elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff --name-only --diff-filter=d HEAD^..HEAD)
+        else
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff-tree --root --no-commit-id --name-only --diff-filter=d -r HEAD)
+        fi
+
+        if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
+          echo "Checking ${#CHANGED_FILES[@]} changed file(s) for header compliance..."
+          copywrite headers \
+            --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
+            --plan \
+            -- \
+            "${CHANGED_FILES[@]}"
+        else
+          echo "No added or modified files found to check for header compliance."
+        fi
+
+    - name: Run file compliance check
       shell: bash
       env:
         INPUT_COMMITMESSAGE: ${{ inputs.commitMessage }}
+        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+      run: |
+        python3 "$GITHUB_ACTION_PATH/main.py"
+
 branding:
-  icon: 'check-square'
-  color: 'green'
+  icon: check-square
+  color: green

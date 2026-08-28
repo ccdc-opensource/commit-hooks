@@ -1,8 +1,9 @@
-This repository contains files that can be used as a github action and local
-git hooks.
+This repository provides code quality and compliance tooling for CCDC repositories:
 
-It does a few checks on source code to ensure compliance with some general
-CCDC coding standard.
+1. **Native Git Hooks** (`main/`): Local hooks configured globally (`commit-msg`, `pre-commit`, `pre-merge-commit`) for standard Git workflows.
+2. **GitHub Action** (`action.yml`): Composite GitHub Action for CI workflows to validate copyright headers and repository compliance on PRs/commits.
+
+It does a few checks on source code to ensure compliance with general CCDC coding standards.
 
 The commit will be flagged if it includes certain text files with:
 
@@ -12,59 +13,82 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
+* Missing or non-compliant CCDC copyright and license headers (when using the GitHub Action or local copywrite integration)
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
 size of new or modified files exceeds a threshold.
 
 
-# Github action
+# GitHub Actions
+
+This repository provides a composite GitHub Action for validating copyright
+headers and file compliance rules in CI.
 
 ## Usage
+
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v7
+- name: Checkout repository
+  uses: actions/checkout@v7
   with:
-    commitMessage: 'The commit message'
+    ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+    fetch-depth: 0
+
+- name: Set up Python
+  uses: actions/setup-python@v7
+  with:
+    python-version: "3.11"
+
+- name: Extract commit message
+  shell: bash
+  run: |
+    delimiter="$(python -c 'import uuid; print(uuid.uuid4())')"
+    {
+      echo "commit_message<<${delimiter}"
+      git log --format=%B -n 1 HEAD
+      echo "${delimiter}"
+    } >> "$GITHUB_ENV"
+
+- uses: ccdc-opensource/commit-hooks@v8
+  with:
+    commitMessage: ${{ env.commit_message }}
+    # Optional: enable CCDC license header validation on PR changed files
+    licenseCheck: true  # default: false (opt-in)
 ```
 
-## Scenarios
-### Check files in pull request for merge to main
-```yaml
-name: Check pull request files
-on:
-  pull_request
-    branches: [ main ]
-jobs:
-  Pull-request-files-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-      - name: Get the commit message
-        run: |
-          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
-        shell: bash
-      - uses: ccdc-opensource/commit-hooks@v7
-        with:
-          commitMessage: ${{ env.commit_message }}
-```
+A complete workflow template for CI is available in [templates/compliance.yml](templates/compliance.yml).
 
-# commit-hooks
-You can use this as git hooks for local repositories.
+# Native Git Hooks
 
-A set of hooks include:
-* commit-msg
-* pre-commit
-* pre-merge-commit
+To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers) globally for all repositories on your machine:
 
-## Setting up
-1. Clone this repo
-1. `git config --global core.hooksPath <this repo location>/main`
+1. Clone this repository.
+2. Run:
+   ```bash
+   git config --global core.hooksPath <path-to-cloned-repo>/main
+   ```
+3. (Optional) Install `copywrite` to automatically add and format CCDC copyright headers on commit:
+   * **Windows:** `choco install copywrite`
+   * **macOS:** `brew install hashicorp/tap/copywrite`
+   * **Linux:** `go install github.com/hashicorp/copywrite@latest`
+
+> **Note:** If `copywrite` is not installed on your machine, native hooks will continue to run all other standard checks and display a gentle warning without failing your commit.
+
+## Configuring Copywrite Behavior
+
+Developers can customise the copywrite hook using Git configuration:
+
+* **Enable / Disable Copywrite:**
+  ```bash
+  git config --global hooks.copywrite true   # opt-in: enable copywrite integration
+  git config --global hooks.copywrite false  # default: disabled
+  ```
+
+* **Set Mode (`fix` vs `check`):**
+  ```bash
+  git config --global hooks.copywriteMode fix    # default: automatically inserts/updates headers on commit
+  git config --global hooks.copywriteMode check  # read-only check (warns/fails if headers are missing)
+  ```
 
 ## Recommended settings
 ### To ensure the line endings are correctly converted:
