@@ -82,11 +82,18 @@ runs:
 
         if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
           echo "Checking ${#CHANGED_FILES[@]} changed file(s) for header compliance..."
+          CHECK_ROOT="$(mktemp -d)"
+          trap 'rm -rf "$CHECK_ROOT"' EXIT
+          for file in "${CHANGED_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              mkdir -p "$CHECK_ROOT/$(dirname "$file")"
+              cp -- "$file" "$CHECK_ROOT/$file"
+            fi
+          done
           copywrite headers \
             --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
             --plan \
-            -- \
-            "${CHANGED_FILES[@]}"
+            --dirPath "$CHECK_ROOT"
         else
           echo "No added or modified files found to check for header compliance."
         fi

@@ -22,7 +22,7 @@ Module for a git hook.
 from collections import defaultdict
 from io import StringIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest.mock import patch
 import os
 import platform
@@ -1076,12 +1076,6 @@ def run_copywrite(files):
         return 1
     is_check_mode = mode in ['check', 'plan', 'verify']
 
-    cmd = [copywrite_exe, 'headers', f'--config={config_path}']
-    if is_check_mode:
-        cmd.append('--plan')
-    cmd.append('--')
-    cmd.extend(files)
-
     try:
         if not is_check_mode:
             unstaged = subprocess.run(
@@ -1098,27 +1092,53 @@ def run_copywrite(files):
                 _fail(f'Unable to inspect unstaged changes:\n{unstaged.stderr.strip()}')
                 return 1
 
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env
-        )
-        if proc.returncode != 0:
-            details = '\n'.join(output.strip() for output in [proc.stdout, proc.stderr] if output.strip())
-            _fail(f'Copyright header update failed:\n{details}')
-            return 1
-        if not is_check_mode:
-            restage = subprocess.run(
-                ['git', 'add', '--'] + files,
-                stdout=subprocess.DEVNULL,
+        with TemporaryDirectory() as temp_dir:
+            check_root = Path(temp_dir)
+            for filename in files:
+                relative_path = Path(filename)
+                if relative_path.is_absolute() or '..' in relative_path.parts:
+                    _fail(f'Cannot check file outside the repository: {filename}')
+                    return 1
+                if relative_path.is_file():
+                    staged_path = check_root / relative_path
+                    staged_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(relative_path, staged_path)
+
+            cmd = [
+                copywrite_exe,
+                'headers',
+                f'--config={config_path}',
+                f'--dirPath={check_root}'
+            ]
+            if is_check_mode:
+                cmd.append('--plan')
+
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                env=env
             )
-            if restage.returncode != 0:
-                _fail(f'Unable to restage files updated by Copywrite:\n{restage.stderr.strip()}')
+            if proc.returncode != 0:
+                details = '\n'.join(output.strip() for output in [proc.stdout, proc.stderr] if output.strip())
+                _fail(f'Copyright header update failed:\n{details}')
                 return 1
+            if not is_check_mode:
+                for filename in files:
+                    updated_path = check_root / filename
+                    if updated_path.is_file():
+                        shutil.copy2(updated_path, filename)
+
+                restage = subprocess.run(
+                    ['git', 'add', '--'] + files,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if restage.returncode != 0:
+                    _fail(f'Unable to restage files updated by Copywrite:\n{restage.stderr.strip()}')
+                    return 1
     except (OSError, subprocess.SubprocessError) as error:
         _fail(f'Failed to run Copywrite: {error}')
         return 1
@@ -1140,7 +1160,8 @@ class TestRunCopywrite(unittest.TestCase):
     @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
     @patch('githooks.subprocess.run')
-    def test_check_failure_blocks_commit(self, run, _config, _which, _is_file):
+    @patch('githooks.shutil.copy2')
+    def test_check_failure_blocks_commit(self, _copy, run, _config, _which, _is_file):
         run.return_value = subprocess.CompletedProcess([], 1, 'stdout', 'stderr')
         self.assertEqual(1, run_copywrite(['example.py']))
 
@@ -1148,24 +1169,26 @@ class TestRunCopywrite(unittest.TestCase):
     @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_fix_restages_files(self, run, _config, _which, _is_file):
+    @patch('githooks.shutil.copy2')
+    def test_fix_restages_files(self, _copy, run, _config, _which, _is_file):
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
         ]
         self.assertEqual(0, run_copywrite(['example.py']))
-        self.assertEqual(
-            ['copywrite', 'headers', unittest.mock.ANY, '--', 'example.py'],
-            run.call_args_list[1].args[0]
-        )
+        copywrite_cmd = run.call_args_list[1].args[0]
+        self.assertEqual(['copywrite', 'headers'], copywrite_cmd[:2])
+        self.assertTrue(copywrite_cmd[2].startswith('--config='))
+        self.assertTrue(copywrite_cmd[3].startswith('--dirPath='))
         self.assertEqual(['git', 'add', '--', 'example.py'], run.call_args_list[-1].args[0])
 
     @patch('githooks.Path.is_file', return_value=True)
     @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_restage_failure_blocks_commit(self, run, _config, _which, _is_file):
+    @patch('githooks.shutil.copy2')
+    def test_restage_failure_blocks_commit(self, _copy, run, _config, _which, _is_file):
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
@@ -1186,7 +1209,8 @@ class TestRunCopywrite(unittest.TestCase):
     @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
     @patch('githooks.subprocess.run', side_effect=OSError('cannot execute'))
-    def test_subprocess_error_blocks_commit(self, _run, _config, _which, _is_file):
+    @patch('githooks.shutil.copy2')
+    def test_subprocess_error_blocks_commit(self, _copy, _run, _config, _which, _is_file):
         self.assertEqual(1, run_copywrite(['example.py']))
 
 
