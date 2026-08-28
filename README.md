@@ -118,6 +118,12 @@ repos:
 The `copywrite-check` and `copywrite-fix` hooks require the `copywrite`
 CLI to be available on your `PATH`.
 
+**Windows (Chocolatey)**
+
+```powershell
+choco install copywrite
+```
+
 **macOS / Linux (Homebrew)**
 
 ```bash
