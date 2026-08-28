@@ -300,6 +300,44 @@ def get_changed_lines(modified_file):
     return lines
 
 
+class TestPushRanges(unittest.TestCase):
+    def _assert_ranges(self, before_sha, expected_files_command, expected_lines_command):
+        environment = {'GITHUB_EVENT_NAME': 'push'}
+        if before_sha is not None:
+            environment['GITHUB_EVENT_BEFORE'] = before_sha
+
+        with patch.dict(os.environ, environment, clear=True), patch('githooks._get_output') as get_output:
+            get_output.return_value = 'M\texample.py\n'
+            self.assertEqual(['example.py'], get_commit_files()['M'])
+            get_output.assert_called_once_with(expected_files_command)
+
+            get_output.reset_mock()
+            get_output.return_value = '@@ -1 +1 @@\n'
+            self.assertEqual(['1'], get_changed_lines('example.py'))
+            get_output.assert_called_once_with(expected_lines_command)
+
+    def test_push_uses_event_before_sha(self):
+        self._assert_ranges(
+            'abc123',
+            ['git', 'diff', '--ignore-submodules', '--name-status', 'abc123..HEAD', '--'],
+            ['git', 'diff', '--unified=0', 'abc123..HEAD', '--', 'example.py']
+        )
+
+    def test_initial_push_uses_root_diff(self):
+        self._assert_ranges(
+            '0' * 40,
+            ['git', 'diff-tree', '--root', '--no-commit-id', '--name-status', '-r', 'HEAD', '--'],
+            ['git', 'diff-tree', '--root', '--no-commit-id', '--unified=0', '-r', 'HEAD', '--', 'example.py']
+        )
+
+    def test_push_without_before_uses_previous_commit(self):
+        self._assert_ranges(
+            None,
+            ['git', 'diff', '--ignore-submodules', '--name-status', 'HEAD~..', '--'],
+            ['git', 'diff', '--unified=0', 'HEAD~', '--', 'example.py']
+        )
+
+
 def yield_changed_lines(changed_lines):
     '''Yield individual line numbers from list returned by get_changed_lines'''
     for line_num_range in changed_lines:

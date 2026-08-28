@@ -28,14 +28,28 @@ headers and file compliance rules in CI.
 ## Usage
 
 ```yaml
+- name: Checkout repository
+  uses: actions/checkout@v7
+  with:
+    ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+    fetch-depth: 0
+
+- name: Set up Python
+  uses: actions/setup-python@v7
+  with:
+    python-version: "3.11"
+
 - name: Extract commit message
   shell: bash
   run: |
-    echo 'commit_message<<EOF' >> "$GITHUB_ENV"
-    git log --format=%B -n 1 HEAD >> "$GITHUB_ENV"
-    echo 'EOF' >> "$GITHUB_ENV"
+    delimiter="$(python -c 'import uuid; print(uuid.uuid4())')"
+    {
+      echo "commit_message<<${delimiter}"
+      git log --format=%B -n 1 HEAD
+      echo "${delimiter}"
+    } >> "$GITHUB_ENV"
 
-- uses: ccdc-opensource/commit-hooks@main
+- uses: ccdc-opensource/commit-hooks@v8
   with:
     commitMessage: ${{ env.commit_message }}
     # Optional: enable CCDC license header validation on PR changed files
