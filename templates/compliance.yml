@@ -1,0 +1,33 @@
+name: Header & Compliance Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  compliance-check:
+    name: Validate Headers & Code Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Extract commit message
+        shell: bash
+        run: |
+          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after || github.sha }})" >> $GITHUB_ENV
+
+      - name: Run CCDC Commit Hooks & Header Checks
+        uses: ccdc-opensource/commit-hooks@v8
+        with:
+          commitMessage: ${{ env.commit_message }}

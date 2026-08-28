@@ -8,6 +8,7 @@ project {
     ".github/**",
     "test/**",
     "tests/**",
+    "templates/**",
     "**/bin/**",
     "**/obj/**",
     "**/packages/**",

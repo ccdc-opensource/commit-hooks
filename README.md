@@ -29,34 +29,49 @@ headers and file compliance rules in CI.
 ## Usage
 
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v7
+- uses: ccdc-opensource/commit-hooks@v8
   with:
     commitMessage: ${{ github.event.head_commit.message }}
 ```
 
-## Scenarios
-### Check files in pull request for merge to main
+## Workflow Template
+
+A ready to use template is available in [`templates/compliance.yml`](templates/compliance.yml).
+
+You can copy this file directly into your repository at `.github/workflows/compliance.yml`, or distribute it across your organisation via your centralised GitHub repository management system.
+
 ```yaml
-name: Check pull request files
+name: Header & Compliance Checks
+
 on:
-  pull_request
-    branches: [ main ]
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main ]
+
 jobs:
-  Pull-request-files-check:
+  compliance-check:
+    name: Validate Headers & Code Compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - name: Get the commit message
+
+      - name: Extract commit message
         run: |
-          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after }})" >> $GITHUB_ENV
+          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after || github.sha }})" >> $GITHUB_ENV
         shell: bash
-      - uses: ccdc-opensource/commit-hooks@v8
+
+      - name: Run CCDC Commit Hooks & Header Checks
+        uses: ccdc-opensource/commit-hooks@v8
         with:
           commitMessage: ${{ env.commit_message }}
 ```
@@ -98,6 +113,8 @@ headers using [HashiCorp Copywrite](https://github.com/hashicorp/copywrite).
   and verification workflows.
 
 ### Example Configuration
+
+A starter config template is available in [`templates/.pre-commit-config.yaml`](templates/.pre-commit-config.yaml).
 
 Add the following to your `.pre-commit-config.yaml`:
 
