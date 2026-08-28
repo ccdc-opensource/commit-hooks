@@ -20,16 +20,23 @@ inputs:
   commitMessage:
     description: 'The commit message'
     required: true
+  licenseCheck:
+    description: 'Validate CCDC copyright and license headers on changed files (true/false)'
+    required: false
+    default: 'false'
 runs:
   using: composite
   steps:
     - name: Install copywrite
+      if: ${{ inputs.licenseCheck == 'true' }}
       uses: hashicorp/setup-copywrite@v1.1.3
 
     - name: Validate Header Compliance
+      if: ${{ inputs.licenseCheck == 'true' }}
       shell: bash
       env:
         COPYWRITE_HOOK_ROOT: ${{ github.action_path }}
+        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
       run: |
         copywrite --version
 
@@ -42,21 +49,35 @@ runs:
           if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
             DIFF_REF="${GITHUB_BASE_REF}"
           fi
-          if git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
-            while IFS= read -r file; do
-              [ -n "$file" ] && CHANGED_FILES+=("$file")
-            done < <(git diff --name-only --diff-filter=d "${DIFF_REF}...HEAD")
+          if ! git rev-parse --verify "$DIFF_REF" >/dev/null 2>&1; then
+            echo "Unable to resolve pull request base ref: ${GITHUB_BASE_REF}" >&2
+            exit 1
           fi
-        else
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff --name-only --diff-filter=d "${DIFF_REF}...HEAD")
+        elif [ "${GITHUB_EVENT_NAME:-}" = "push" ]; then
+          if [[ "${GITHUB_EVENT_BEFORE:-}" =~ ^0+$ ]]; then
             while IFS= read -r file; do
               [ -n "$file" ] && CHANGED_FILES+=("$file")
-            done < <(git diff --name-only --diff-filter=d HEAD~1..HEAD)
+            done < <(git diff-tree --root --no-commit-id --name-only --diff-filter=d -r HEAD)
           else
+            if [ -z "${GITHUB_EVENT_BEFORE:-}" ] || ! git rev-parse --verify "${GITHUB_EVENT_BEFORE}^{commit}" >/dev/null 2>&1; then
+              echo "Unable to resolve push baseline: ${GITHUB_EVENT_BEFORE:-<empty>}" >&2
+              exit 1
+            fi
             while IFS= read -r file; do
               [ -n "$file" ] && CHANGED_FILES+=("$file")
-            done < <(git diff --name-only --diff-filter=d HEAD)
+            done < <(git diff --name-only --diff-filter=d "${GITHUB_EVENT_BEFORE}..HEAD")
           fi
+        elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff --name-only --diff-filter=d HEAD^..HEAD)
+        else
+          while IFS= read -r file; do
+            [ -n "$file" ] && CHANGED_FILES+=("$file")
+          done < <(git diff-tree --root --no-commit-id --name-only --diff-filter=d -r HEAD)
         fi
 
         if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
@@ -74,6 +95,7 @@ runs:
       shell: bash
       env:
         INPUT_COMMITMESSAGE: ${{ inputs.commitMessage }}
+        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
       run: |
         python3 "$GITHUB_ACTION_PATH/main.py"
 

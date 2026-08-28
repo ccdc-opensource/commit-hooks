@@ -28,9 +28,18 @@ headers and file compliance rules in CI.
 ## Usage
 
 ```yaml
-- uses: ccdc-opensource/commit-hooks@v8
+- name: Extract commit message
+  shell: bash
+  run: |
+    echo 'commit_message<<EOF' >> "$GITHUB_ENV"
+    git log --format=%B -n 1 HEAD >> "$GITHUB_ENV"
+    echo 'EOF' >> "$GITHUB_ENV"
+
+- uses: ccdc-opensource/commit-hooks@main
   with:
-    commitMessage: ${{ github.event.head_commit.message }}
+    commitMessage: ${{ env.commit_message }}
+    # Optional: enable CCDC license header validation on PR changed files
+    licenseCheck: true  # default: false (opt-in)
 ```
 
 A complete workflow template for CI is available in [templates/compliance.yml](templates/compliance.yml).

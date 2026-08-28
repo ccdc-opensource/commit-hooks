@@ -17,9 +17,10 @@ jobs:
       - name: Get the commit message
         run: |
           echo 'commit_message<<EOF' >> $GITHUB_ENV
-          git log --format=%B -n 1 ${{ github.event.after }} >> $GITHUB_ENV
+          git log --format=%B -n 1 HEAD >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
         shell: bash
       - uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
+          licenseCheck: true

@@ -208,7 +208,13 @@ def get_commit_files():
         if _is_pull_request():
             commands += [f'remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]}','--']
         else:
-            commands += ['HEAD~..', '--']
+            before_sha = os.environ.get('GITHUB_EVENT_BEFORE', '')
+            if before_sha and set(before_sha) == {'0'}:
+                commands = ['git', 'diff-tree', '--root', '--no-commit-id', '--name-status', '-r', 'HEAD', '--']
+            elif before_sha:
+                commands += [f'{before_sha}..HEAD', '--']
+            else:
+                commands += ['HEAD~..', '--']
     else:
         commands = ['git', 'diff-index', '--ignore-submodules', 'HEAD', '--cached']
 
@@ -275,9 +281,15 @@ def get_changed_lines(modified_file):
         if _is_pull_request():
             commands += [f'remotes/origin/{os.environ["GITHUB_BASE_REF"]}..remotes/origin/{os.environ["GITHUB_HEAD_REF"]}', '--',f'{modified_file}']
         else:
-            commands += ['HEAD~', f'{modified_file}']
+            before_sha = os.environ.get('GITHUB_EVENT_BEFORE', '')
+            if before_sha and set(before_sha) == {'0'}:
+                commands = ['git', 'diff-tree', '--root', '--no-commit-id', '--unified=0', '-r', 'HEAD', '--', modified_file]
+            elif before_sha:
+                commands += [f'{before_sha}..HEAD', '--', modified_file]
+            else:
+                commands += ['HEAD~', '--', modified_file]
     else:
-        commands = [f'git', 'diff-index', 'HEAD', '--unified=0', f'{modified_file}']
+        commands = [f'git', 'diff-index', 'HEAD', '--unified=0', '--', f'{modified_file}']
     output = _get_output(commands)
 
     lines = []
@@ -1014,20 +1026,40 @@ def run_copywrite(files):
     hook_root = Path(__file__).resolve().parent.parent
     config_path = hook_root / 'main' / 'copywrite' / '.copywrite.hcl'
     if not config_path.is_file():
-        return 0
+        _fail(f'Copywrite configuration not found: {config_path}')
+        return 1
 
     env = os.environ.copy()
     env['COPYWRITE_HOOK_ROOT'] = str(hook_root)
 
-    mode_setting = get_config_setting('hooks.copywriteMode')
-    is_check_mode = mode_setting is not None and mode_setting.lower() in ['check', 'plan', 'verify']
+    mode = (get_config_setting('hooks.copywriteMode') or 'fix').lower()
+    if mode not in ['fix', 'check', 'plan', 'verify']:
+        _fail(f'Unsupported hooks.copywriteMode value: {mode}')
+        return 1
+    is_check_mode = mode in ['check', 'plan', 'verify']
 
     cmd = [copywrite_exe, 'headers', f'--config={config_path}']
     if is_check_mode:
         cmd.append('--plan')
+    cmd.append('--')
     cmd.extend(files)
 
     try:
+        if not is_check_mode:
+            unstaged = subprocess.run(
+                ['git', 'diff', '--quiet', '--'] + files,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if unstaged.returncode == 1:
+                _fail('Copywrite fix mode cannot run with unstaged changes in staged files. '
+                      'Stage or stash those changes, or use hooks.copywriteMode check.')
+                return 1
+            if unstaged.returncode != 0:
+                _fail(f'Unable to inspect unstaged changes:\n{unstaged.stderr.strip()}')
+                return 1
+
         proc = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -1036,19 +1068,88 @@ def run_copywrite(files):
             env=env
         )
         if proc.returncode != 0:
-            if is_check_mode:
-                _fail(f'Copyright header check failed:\n{proc.stdout or proc.stderr}')
+            details = '\n'.join(output.strip() for output in [proc.stdout, proc.stderr] if output.strip())
+            _fail(f'Copyright header update failed:\n{details}')
+            return 1
+        if not is_check_mode:
+            restage = subprocess.run(
+                ['git', 'add', '--'] + files,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if restage.returncode != 0:
+                _fail(f'Unable to restage files updated by Copywrite:\n{restage.stderr.strip()}')
                 return 1
-            else:
-                print(f' Copywrite warning:\n{proc.stderr.strip()}')
-        else:
-            if not is_check_mode:
-                # Re-stage any files that copywrite updated
-                subprocess.run(['git', 'add'] + files, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except Exception as e:
-        print(f' WARNING: Failed to run copywrite: {e}')
+    except (OSError, subprocess.SubprocessError) as error:
+        _fail(f'Failed to run Copywrite: {error}')
+        return 1
 
     return 0
+
+
+class TestRunCopywrite(unittest.TestCase):
+    @patch('githooks.get_config_setting', return_value=None)
+    def test_disabled(self, _config):
+        self.assertEqual(0, run_copywrite(['example.py']))
+
+    @patch('githooks.shutil.which', return_value=None)
+    @patch('githooks.get_config_setting', return_value='true')
+    def test_missing_executable_is_soft_failure(self, _config, _which):
+        self.assertEqual(0, run_copywrite(['example.py']))
+
+    @patch('githooks.Path.is_file', return_value=True)
+    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'check'])
+    @patch('githooks.subprocess.run')
+    def test_check_failure_blocks_commit(self, run, _config, _which, _is_file):
+        run.return_value = subprocess.CompletedProcess([], 1, 'stdout', 'stderr')
+        self.assertEqual(1, run_copywrite(['example.py']))
+
+    @patch('githooks.Path.is_file', return_value=True)
+    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
+    @patch('githooks.subprocess.run')
+    def test_fix_restages_files(self, run, _config, _which, _is_file):
+        run.side_effect = [
+            subprocess.CompletedProcess([], 0, '', ''),
+            subprocess.CompletedProcess([], 0, '', ''),
+            subprocess.CompletedProcess([], 0, '', ''),
+        ]
+        self.assertEqual(0, run_copywrite(['example.py']))
+        self.assertEqual(
+            ['copywrite', 'headers', unittest.mock.ANY, '--', 'example.py'],
+            run.call_args_list[1].args[0]
+        )
+        self.assertEqual(['git', 'add', '--', 'example.py'], run.call_args_list[-1].args[0])
+
+    @patch('githooks.Path.is_file', return_value=True)
+    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
+    @patch('githooks.subprocess.run')
+    def test_restage_failure_blocks_commit(self, run, _config, _which, _is_file):
+        run.side_effect = [
+            subprocess.CompletedProcess([], 0, '', ''),
+            subprocess.CompletedProcess([], 0, '', ''),
+            subprocess.CompletedProcess([], 1, '', 'cannot add'),
+        ]
+        self.assertEqual(1, run_copywrite(['example.py']))
+
+    @patch('githooks.Path.is_file', return_value=True)
+    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
+    @patch('githooks.subprocess.run')
+    def test_fix_rejects_partially_staged_files(self, run, _config, _which, _is_file):
+        run.return_value = subprocess.CompletedProcess([], 1, '', '')
+        self.assertEqual(1, run_copywrite(['example.py']))
+        run.assert_called_once()
+
+    @patch('githooks.Path.is_file', return_value=True)
+    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'check'])
+    @patch('githooks.subprocess.run', side_effect=OSError('cannot execute'))
+    def test_subprocess_error_blocks_commit(self, _run, _config, _which, _is_file):
+        self.assertEqual(1, run_copywrite(['example.py']))
 
 
 def commit_hook(merge=False):

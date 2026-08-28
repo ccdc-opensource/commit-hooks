@@ -25,9 +25,12 @@ jobs:
       - name: Extract commit message
         shell: bash
         run: |
-          echo "commit_message=$(git log --format=%B -n 1 ${{ github.event.after || github.sha }})" >> $GITHUB_ENV
+          echo 'commit_message<<EOF' >> "$GITHUB_ENV"
+          git log --format=%B -n 1 HEAD >> "$GITHUB_ENV"
+          echo 'EOF' >> "$GITHUB_ENV"
 
       - name: Run CCDC Commit Hooks & Header Checks
-        uses: ccdc-opensource/commit-hooks@v8
+        uses: ccdc-opensource/commit-hooks@main
         with:
           commitMessage: ${{ env.commit_message }}
+          licenseCheck: true
