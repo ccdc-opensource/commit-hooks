@@ -13,7 +13,7 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
-* Missing or non-compliant CCDC copyright and license headers (when using the GitHub Action or local copywrite integration)
+* Missing or non-compliant CCDC copyright and licence headers (when header validation is enabled)
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
@@ -67,18 +67,15 @@ To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file s
    ```bash
    git config --global core.hooksPath <path-to-cloned-repo>/main
    ```
-3. (Optional) Install `copywrite` to automatically add and format CCDC copyright headers on commit:
-   * **Windows:** `choco install copywrite`
-   * **macOS:** `brew install hashicorp/tap/copywrite`
-   * **Linux:** `go install github.com/hashicorp/copywrite@latest`
+3. (Optional) Enable automatic CCDC copyright and licence header formatting as described below.
 
-> **Note:** If `copywrite` is not installed on your machine, native hooks will continue to run all other standard checks and display a gentle warning without failing your commit.
+## Configuring Licence Header Behavior
 
-## Configuring Copywrite Behavior
+Developers can customise the licence header hook using Git configuration. The
+existing `hooks.copywrite` names are retained for compatibility and do not
+require the Copywrite executable.
 
-Developers can customise the copywrite hook using Git configuration:
-
-* **Enable / Disable Copywrite:**
+* **Enable / Disable Header Formatting:**
   ```bash
   git config --global hooks.copywrite true   # opt-in: enable copywrite integration
   git config --global hooks.copywrite false  # default: disabled
