@@ -134,12 +134,37 @@ def _known_header_prefix_end(text, offset, expected):
     return header_end
 
 
+def _damaged_full_header_end(text, offset, style):
+    marker = '#' if style == 'hash' else '//'
+    lines = text[offset:].splitlines(keepends=True)
+    if len(lines) < 2 or lines[0].strip() != marker:
+        return offset
+    if not lines[1].strip().startswith(f'{marker} This code is Copyright'):
+        return offset
+
+    position = offset
+    line_positions = []
+    for line in lines:
+        line_positions.append((position, position + len(line), line.strip()))
+        position += len(line)
+
+    for index, (_, line_end, stripped) in enumerate(line_positions[2:], start=2):
+        if stripped.startswith(marker) and stripped.endswith('law.'):
+            if index + 1 < len(line_positions) and line_positions[index + 1][2] == marker:
+                return line_positions[index + 1][1]
+            return line_end
+    return offset
+
+
 def _existing_header_end(text, offset, style, expected):
     lines = text[offset:].splitlines(keepends=True)
     if lines and LEGACY_HEADER_PATTERN.match(lines[0]):
         if len(lines) > 1 and lines[1].strip() == '':
             return offset + len(lines[0]) + len(lines[1])
         return offset + len(lines[0])
+    damaged_header_end = _damaged_full_header_end(text, offset, style)
+    if damaged_header_end != offset:
+        return damaged_header_end
     return _known_header_prefix_end(text, offset, expected)
 
 
