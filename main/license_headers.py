@@ -18,9 +18,11 @@
 
 import argparse
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path, PurePosixPath
 import re
 import sys
+import tokenize
 
 
 HASH_EXTENSIONS = {'.py', '.sh', '.bash', '.yaml', '.yml'}
@@ -31,6 +33,11 @@ IGNORED_DIRECTORIES = {
 }
 IGNORED_SUFFIXES = ('.designer.cs', '.g.cs', '.min.js', '.lock')
 TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / 'copywrite' / 'headers'
+PYTHON_ENCODING_PATTERN = re.compile(r'^[ \t\f]*#.*?coding[:=][ \t]*[-\w.]+')
+LEGACY_HEADER_PATTERN = re.compile(
+    r'^(#|//) Copyright The Cambridge Crystallographic Data Centre '
+    r'\(CCDC\) \d{4}(?:, \d{4})?\r?\n?$'
+)
 
 
 def _comment_style(filename):
@@ -54,20 +61,29 @@ def _render_header(style, newline='\n', year=None):
     return rendered.replace('\n', newline)
 
 
+def _decode_content(filename, data):
+    if not isinstance(data, bytes):
+        return data, None
+    encoding = 'utf-8'
+    if str(filename).lower().endswith('.py'):
+        encoding, _ = tokenize.detect_encoding(BytesIO(data).readline)
+    return data.decode(encoding), encoding
+
+
 def _header_offset(filename, text, style):
     if style != 'hash':
         return 0
 
-    offset = 0
-    if text.startswith('#!'):
-        newline_offset = text.find('\n')
-        offset = len(text) if newline_offset == -1 else newline_offset + 1
+    lines = text.splitlines(keepends=True)
+    has_shebang = bool(lines and lines[0].startswith('#!'))
+    if not str(filename).lower().endswith('.py'):
+        return len(lines[0]) if has_shebang else 0
 
-    if str(filename).lower().endswith('.py'):
-        first_line = text[offset:].split('\n', 1)[0]
-        if re.match(r'^#.*coding[:=]\s*[-\w.]+', first_line):
-            offset += len(first_line) + (1 if offset + len(first_line) < len(text) else 0)
-    return offset
+    candidate_indexes = [1] if has_shebang else range(min(2, len(lines)))
+    for index in candidate_indexes:
+        if index < len(lines) and PYTHON_ENCODING_PATTERN.match(lines[index]):
+            return sum(len(line) for line in lines[:index + 1])
+    return len(lines[0]) if has_shebang else 0
 
 
 def _existing_header_end(text, offset, style):
@@ -90,7 +106,12 @@ def _existing_header_end(text, offset, style):
             if index + 1 < len(lines) and lines[index + 1][2] == marker:
                 return lines[index + 1][1]
             return line_end
-    return position
+
+    if lines and LEGACY_HEADER_PATTERN.match(text[lines[0][0]:lines[0][1]]):
+        if len(lines) > 1 and lines[1][2] == '':
+            return lines[1][1]
+        return lines[0][1]
+    return offset
 
 
 def check_content(filename, data, year=None):
@@ -99,9 +120,9 @@ def check_content(filename, data, year=None):
     if style is None:
         return None
     try:
-        text = data.decode('utf-8') if isinstance(data, bytes) else data
-    except UnicodeDecodeError:
-        return 'file is not UTF-8 encoded'
+        text, _ = _decode_content(filename, data)
+    except (LookupError, SyntaxError, UnicodeDecodeError):
+        return 'file encoding could not be decoded'
 
     newline = '\r\n' if '\r\n' in text else '\n'
     offset = _header_offset(filename, text, style)
@@ -117,8 +138,7 @@ def fix_content(filename, data, year=None):
     if style is None:
         return data
 
-    was_bytes = isinstance(data, bytes)
-    text = data.decode('utf-8') if was_bytes else data
+    text, encoding = _decode_content(filename, data)
     newline = '\r\n' if '\r\n' in text else '\n'
     offset = _header_offset(filename, text, style)
     expected = _render_header(style, newline, year)
@@ -127,7 +147,7 @@ def fix_content(filename, data, year=None):
 
     header_end = _existing_header_end(text, offset, style)
     fixed = text[:offset] + expected + text[header_end:]
-    return fixed.encode('utf-8') if was_bytes else fixed
+    return fixed.encode(encoding) if encoding else fixed
 
 
 def process_files(files, fix=False, year=None):
