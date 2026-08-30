@@ -139,7 +139,11 @@ def _damaged_full_header_end(text, offset, style):
     lines = text[offset:].splitlines(keepends=True)
     if len(lines) < 2 or lines[0].strip() != marker:
         return offset
-    if not lines[1].strip().startswith(f'{marker} This code is Copyright'):
+    identity_line = lines[1].strip()
+    if (
+        not identity_line.startswith(f'{marker} This code is ')
+        or 'Crystallographic Data Centre (CCDC)' not in identity_line
+    ):
         return offset
 
     position = offset
