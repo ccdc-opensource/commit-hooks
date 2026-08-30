@@ -67,6 +67,26 @@ def test_empty_python_file_gets_header():
     assert license_headers.check_content('empty.py', fixed, 2026) is None
 
 
+def test_utf8_bom_remains_at_byte_zero_for_supported_non_python_files():
+    for filename in ['example.yml', 'example.js', 'example.cpp']:
+        fixed = license_headers.fix_content(filename, b'\xef\xbb\xbfvalue\n', 2026)
+        assert fixed.startswith(b'\xef\xbb\xbf')
+        assert fixed.count(b'\xef\xbb\xbf') == 1
+        assert license_headers.check_content(filename, fixed, 2026) is None
+
+
+def test_unterminated_shebang_is_separated_from_header():
+    for filename, shebang in [('script.py', b'#!/usr/bin/env python3'), ('script.sh', b'#!/bin/sh')]:
+        fixed = license_headers.fix_content(filename, shebang, 2026)
+        assert fixed.startswith(shebang + b'\n#\n# This code is Copyright (C) 2026')
+
+
+def test_unterminated_encoding_declaration_is_separated_from_header():
+    declaration = b'# coding=latin-1'
+    fixed = license_headers.fix_content('script.py', declaration, 2026)
+    assert fixed.startswith(declaration + b'\n#\n# This code is Copyright (C) 2026')
+
+
 def test_copywrite_one_line_header_is_replaced():
     old_header = '# Copyright The Cambridge Crystallographic Data Centre (CCDC) 2021, 2026\n\n'
     source_comment = '# keep this source comment\n'
@@ -74,6 +94,16 @@ def test_copywrite_one_line_header_is_replaced():
     assert fixed.startswith('#\n# This code is Copyright (C) 2026')
     assert old_header not in fixed
     assert fixed.endswith(source_comment + 'print("ok")\n')
+
+
+def test_truncated_full_header_is_replaced_without_losing_source_comment():
+    header = license_headers._render_header('hash', year=2026)
+    old_header = license_headers._render_header('hash', year=2025)
+    truncated = old_header.split('# law.\n', 1)[0]
+    source = '# keep this source comment\nprint("ok")\n'
+    fixed = license_headers.fix_content('example.py', truncated + source, 2026)
+    assert fixed == header + source
+    assert fixed.count('This code is Copyright (C)') == 1
 
 
 def test_slash_header_is_added():

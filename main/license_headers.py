@@ -17,6 +17,7 @@
 '''Check and fix full CCDC copyright and licence headers.'''
 
 import argparse
+import codecs
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path, PurePosixPath
@@ -64,9 +65,12 @@ def _render_header(style, newline='\n', year=None):
 def _decode_content(filename, data):
     if not isinstance(data, bytes):
         return data, None
-    encoding = 'utf-8'
-    if str(filename).lower().endswith('.py'):
+    if data.startswith(codecs.BOM_UTF8):
+        encoding = 'utf-8-sig'
+    elif str(filename).lower().endswith('.py'):
         encoding, _ = tokenize.detect_encoding(BytesIO(data).readline)
+    else:
+        encoding = 'utf-8'
     return data.decode(encoding), encoding
 
 
@@ -86,32 +90,57 @@ def _header_offset(filename, text, style):
     return len(lines[0]) if has_shebang else 0
 
 
-def _existing_header_end(text, offset, style):
-    marker = '#' if style == 'hash' else '//'
+def _header_line_matches(actual, expected):
+    if 'This code is Copyright (C)' in expected:
+        marker = expected.split(' ', 1)[0]
+        pattern = (
+            rf'{re.escape(marker)} This code is Copyright \(C\) '
+            r'(?:\d{4}(?:, \d{4})?|\{\{ \.Year \}\}) '
+            r'The Cambridge Crystallographic Data Centre \(CCDC\)'
+        )
+        return re.fullmatch(pattern, actual) is not None
+    return actual == expected
+
+
+def _known_header_prefix_end(text, offset, expected):
+    actual_lines = []
     position = offset
-    lines = []
     for line in text[offset:].splitlines(keepends=True):
-        stripped = line.strip()
-        if stripped and not stripped.startswith(marker):
-            break
-        lines.append((position, position + len(line), stripped))
+        actual_lines.append((position, position + len(line), line.strip()))
         position += len(line)
 
-    block = text[offset:position]
-    if 'Copyright' not in block or 'Cambridge Crystallographic Data Centre' not in block:
+    expected_lines = [line.strip() for line in expected.splitlines()]
+    if len(actual_lines) < 2 or len(expected_lines) < 2:
+        return offset
+    if actual_lines[0][2] != expected_lines[0]:
+        return offset
+    if not _header_line_matches(actual_lines[1][2], expected_lines[1]):
         return offset
 
-    for index, (_, line_end, stripped) in enumerate(lines):
-        if stripped.endswith('law.'):
-            if index + 1 < len(lines) and lines[index + 1][2] == marker:
-                return lines[index + 1][1]
-            return line_end
+    header_end = actual_lines[1][1]
+    expected_index = 2
+    for _, line_end, actual in actual_lines[2:]:
+        if actual == '':
+            continue
+        match_index = next(
+            (index for index in range(expected_index, len(expected_lines))
+             if _header_line_matches(actual, expected_lines[index])),
+            None
+        )
+        if match_index is None:
+            break
+        expected_index = match_index + 1
+        header_end = line_end
+    return header_end
 
-    if lines and LEGACY_HEADER_PATTERN.match(text[lines[0][0]:lines[0][1]]):
-        if len(lines) > 1 and lines[1][2] == '':
-            return lines[1][1]
-        return lines[0][1]
-    return offset
+
+def _existing_header_end(text, offset, style, expected):
+    lines = text[offset:].splitlines(keepends=True)
+    if lines and LEGACY_HEADER_PATTERN.match(lines[0]):
+        if len(lines) > 1 and lines[1].strip() == '':
+            return offset + len(lines[0]) + len(lines[1])
+        return offset + len(lines[0])
+    return _known_header_prefix_end(text, offset, expected)
 
 
 def check_content(filename, data, year=None):
@@ -145,8 +174,11 @@ def fix_content(filename, data, year=None):
     if text.startswith(expected, offset):
         return data
 
-    header_end = _existing_header_end(text, offset, style)
-    fixed = text[:offset] + expected + text[header_end:]
+    header_end = _existing_header_end(text, offset, style, expected)
+    prefix = text[:offset]
+    if prefix and not prefix.endswith(('\n', '\r')):
+        prefix += newline
+    fixed = prefix + expected + text[header_end:]
     return fixed.encode(encoding) if encoding else fixed
 
 
