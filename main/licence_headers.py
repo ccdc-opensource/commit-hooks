@@ -214,8 +214,10 @@ def process_files(files, fix=False, year=None):
         if issue is None:
             continue
         if fix:
-            path.write_bytes(fix_content(filename, data, year))
-            print(f'Updated CCDC licence header: {filename}')
+            fixed = fix_content(filename, data, year)
+            if fixed != data:
+                path.write_bytes(fixed)
+                print(f'Updated CCDC licence header: {filename}')
         else:
             print(f'HEADER FAIL: {filename}: {issue}')
             failures += 1

@@ -62,12 +62,16 @@ def test_encoding_declaration_after_shebang_is_preserved():
 
 
 def test_non_utf8_python_file_preserves_declared_encoding():
-    source = '# generated\n# coding=latin-1\nname = "caf\xe9"\n'.encode('latin-1')
-    fixed = licence_headers.fix_content('script.py', source, 2026)
-    assert isinstance(fixed, bytes)
-    assert b'# coding=latin-1\n#\n# This code is Copyright (C) 2026' in fixed
-    assert b'caf\xe9' in fixed
-    assert licence_headers.check_content('script.py', fixed, 2026) is None
+    for enc in ['latin-1', 'iso-8859-15', 'cp1252', 'utf-8-sig']:
+        source = f'# coding={enc}\nname = "café"\n'.encode(enc)
+        fixed = licence_headers.fix_content('script.py', source, 2026)
+        assert isinstance(fixed, bytes)
+        assert f'# coding={enc}'.encode('ascii') in fixed
+        assert licence_headers.check_content('script.py', fixed, 2026) is None
+        # Verify decoding with original encoding roundtrips cleanly
+        decoded_text, detected_enc = licence_headers._decode_content('script.py', fixed)
+        assert 'This code is Copyright' in decoded_text
+        assert 'café' in decoded_text
 
 
 def test_empty_python_file_gets_header():
@@ -201,6 +205,68 @@ def test_ignored_and_unsupported_files_are_skipped():
     assert licence_headers.check_content('.github/workflows/check.yml', 'name: check\n', 2026) is None
     assert licence_headers.check_content('templates/check.yml', 'name: check\n', 2026) is None
     assert licence_headers.check_content('README.md', '# Read me\n', 2026) is None
+    assert licence_headers.check_content('notes.txt', 'some notes\n', 2026) is None
+    assert licence_headers.check_content('package.json', '{"name": "app"}\n', 2026) is None
+    assert licence_headers.check_content('node_modules/pkg/index.js', 'console.log();\n', 2026) is None
+    assert licence_headers.check_content('dist/bundle.js', 'console.log();\n', 2026) is None
+    assert licence_headers.check_content('.venv/lib/module.py', 'print("ok")\n', 2026) is None
+
+
+def test_generated_files_are_excluded():
+    generated_files = [
+        'Form.Designer.cs',
+        'Model.g.cs',
+        'bundle.min.js',
+        'packages.lock',
+        'service.generated.ts',
+        'codegen.generated.cpp',
+    ]
+    for filename in generated_files:
+        assert licence_headers.check_content(filename, 'var x = 1;\n', 2026) is None
+        assert licence_headers.fix_content(filename, 'var x = 1;\n', 2026) == 'var x = 1;\n'
+
+
+def test_crlf_line_endings_are_preserved():
+    source = 'int main() {\r\n    return 0;\r\n}\r\n'
+    fixed = licence_headers.fix_content('main.cpp', source, 2026)
+    assert '\r\n' in fixed
+    assert '\n' not in fixed.replace('\r\n', '')
+    assert licence_headers.check_content('main.cpp', fixed, 2026) is None
+
+
+def test_legacy_slash_header_is_replaced():
+    old_header = '// Copyright The Cambridge Crystallographic Data Centre (CCDC) 2020\r\n\r\n'
+    source = 'const x = 42;\r\n'
+    fixed = licence_headers.fix_content('app.js', old_header + source, 2026)
+    assert fixed.startswith('//\r\n// This code is Copyright (C) 2026')
+    assert old_header not in fixed
+    assert fixed.endswith(source)
+
+
+def test_damaged_slash_header_is_repaired():
+    damaged = (
+        '//\n'
+        '// This code is Copyright (C) 2024 The Cambridge Crystallographic Data Centre (CCDC)\n'
+        '// of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC. This\n'
+        '// broken line...\n'
+        '// law.\n'
+        '//\n'
+    )
+    source = 'const app = 1;\n'
+    fixed = licence_headers.fix_content('app.ts', damaged + source, 2026)
+    expected_header = licence_headers._render_header('slash', year=2026)
+    assert fixed == expected_header + source
+
+
+def test_process_files_avoids_write_when_already_compliant(tmp_path):
+    test_file = tmp_path / 'compliant.py'
+    header = licence_headers._render_header('hash', year=2026)
+    content = (header + 'print("hello")\n').encode('utf-8')
+    test_file.write_bytes(content)
+
+    initial_mtime = test_file.stat().st_mtime_ns
+    assert licence_headers.process_files([str(test_file)], fix=True, year=2026) == 0
+    assert test_file.stat().st_mtime_ns == initial_mtime
 
 
 def test_process_files_skips_symlinks(tmp_path):
