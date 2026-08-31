@@ -24,7 +24,6 @@ from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
-import importlib
 import os
 import platform
 import re
@@ -32,7 +31,10 @@ import subprocess
 import unittest
 import sys
 
-licence_headers = None
+try:
+    import licence_headers
+except ImportError:
+    licence_headers = None
 
 
 # Absolute file size limit (in MB) - it's 100MB on github.com
@@ -1086,16 +1088,12 @@ def run_licence_check(files):
         return 1
     is_check_mode = mode in ['check', 'plan', 'verify']
 
-    global licence_headers
     if licence_headers is None:
-        try:
-            licence_headers = importlib.import_module('licence_headers')
-        except ImportError:
-            _fail(
-                'Licence header checking is enabled but the '
-                '"licence_headers" module is not installed.'
-            )
-            return 1
+        _fail(
+            'Licence header checking is enabled but the '
+            '"licence_headers" module is not installed.'
+        )
+        return 1
 
     try:
         if not is_check_mode:
@@ -1135,59 +1133,42 @@ def run_licence_check(files):
 
 
 class TestRunLicenceCheck(unittest.TestCase):
-    def setUp(self):
-        # Reset module-level cached import between tests for complete test isolation
-        import githooks
-        githooks.licence_headers = None
-
     @patch('githooks.get_config_setting', return_value=None)
     def test_disabled(self, _config):
         self.assertEqual(0, run_licence_check(['example.py']))
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.importlib.import_module')
-    def test_check_failure_blocks_commit(self, import_module, _config):
-        fake_module = unittest.mock.Mock()
-        fake_module.process_files.return_value = 1
-        import_module.return_value = fake_module
-
+    @patch('githooks.licence_headers')
+    def test_check_failure_blocks_commit(self, mock_licence, _config):
+        mock_licence.process_files.return_value = 1
         self.assertEqual(1, run_licence_check(['example.py']))
-        fake_module.process_files.assert_called_once_with(['example.py'], fix=False)
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=False)
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.importlib.import_module')
-    def test_check_mode_allows_unstaged_changes(self, import_module, _config):
-        fake_module = unittest.mock.Mock()
-        fake_module.process_files.return_value = 0
-        import_module.return_value = fake_module
-
+    @patch('githooks.licence_headers')
+    def test_check_mode_allows_unstaged_changes(self, mock_licence, _config):
+        mock_licence.process_files.return_value = 0
         self.assertEqual(0, run_licence_check(['example.py']))
-        fake_module.process_files.assert_called_once_with(['example.py'], fix=False)
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=False)
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    @patch('githooks.importlib.import_module')
-    def test_fix_restages_files(self, import_module, run, _config):
-        fake_module = unittest.mock.Mock()
-        fake_module.process_files.return_value = 0
-        import_module.return_value = fake_module
-
+    @patch('githooks.licence_headers')
+    def test_fix_restages_files(self, mock_licence, run, _config):
+        mock_licence.process_files.return_value = 0
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
         ]
         self.assertEqual(0, run_licence_check(['example.py']))
-        fake_module.process_files.assert_called_once_with(['example.py'], fix=True)
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=True)
         self.assertEqual(['git', 'add', '--', 'example.py'], run.call_args_list[-1].args[0])
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    @patch('githooks.importlib.import_module')
-    def test_restage_failure_blocks_commit(self, import_module, run, _config):
-        fake_module = unittest.mock.Mock()
-        fake_module.process_files.return_value = 0
-        import_module.return_value = fake_module
-
+    @patch('githooks.licence_headers')
+    def test_restage_failure_blocks_commit(self, mock_licence, run, _config):
+        mock_licence.process_files.return_value = 0
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 1, '', 'cannot add'),
@@ -1196,27 +1177,26 @@ class TestRunLicenceCheck(unittest.TestCase):
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_fix_rejects_partially_staged_files(self, run, _config):
+    @patch('githooks.licence_headers')
+    def test_fix_rejects_partially_staged_files(self, _mock_licence, run, _config):
         run.return_value = subprocess.CompletedProcess([], 1, '', '')
         self.assertEqual(1, run_licence_check(['example.py']))
         run.assert_called_once()
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.importlib.import_module')
-    def test_processing_error_blocks_commit(self, import_module, _config):
-        fake_module = unittest.mock.Mock()
-        fake_module.process_files.side_effect = OSError('cannot read')
-        import_module.return_value = fake_module
-
+    @patch('githooks.licence_headers')
+    def test_processing_error_blocks_commit(self, mock_licence, _config):
+        mock_licence.process_files.side_effect = OSError('cannot read')
         self.assertEqual(1, run_licence_check(['example.py']))
 
     @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks.licence_headers', None)
     def test_missing_module_allowed_when_disabled(self, _config):
         self.assertEqual(0, run_licence_check(['example.py']))
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.importlib.import_module', side_effect=ImportError('No module named licence_headers'))
-    def test_missing_module_fails_when_enabled(self, _import, _config):
+    @patch('githooks.licence_headers', None)
+    def test_missing_module_fails_when_enabled(self, _config):
         self.assertEqual(1, run_licence_check(['example.py']))
 
 
