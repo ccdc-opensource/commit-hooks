@@ -172,10 +172,16 @@ def _damaged_full_header_end(text, offset, style):
         _, line_end, stripped = line_positions[index]
         if stripped and not stripped.startswith(marker):
             break
-        if stripped.startswith(marker) and stripped.endswith('law.'):
-            if index + 1 < len(line_positions) and line_positions[index + 1][2] == marker:
-                return line_positions[index + 1][1]
-            return line_end
+        if (stripped.startswith(marker) and stripped.endswith('law.')) or 'void or unenforceable under governing' in stripped:
+            if stripped.endswith('law.'):
+                if index + 1 < len(line_positions) and line_positions[index + 1][2] == marker:
+                    return line_positions[index + 1][1]
+                return line_end
+            elif index + 1 < len(line_positions) and line_positions[index + 1][2].startswith(marker) and line_positions[index + 1][2].endswith('law.'):
+                next_index = index + 1
+                if next_index + 1 < len(line_positions) and line_positions[next_index + 1][2] == marker:
+                    return line_positions[next_index + 1][1]
+                return line_positions[next_index][1]
     return offset
 
 
