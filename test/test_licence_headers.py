@@ -11,6 +11,16 @@ def test_complete_hash_header_passes():
     assert licence_headers.check_content('example.py', header + 'print("ok")\n', 2026) is None
 
 
+def test_existing_file_with_earlier_year_passes_and_is_not_modified():
+    # An existing file with 2020 should pass and NOT be bumped to 2026
+    header_2020 = licence_headers._render_header('hash', year=2020)
+    source = header_2020 + 'print("ok")\n'
+    assert licence_headers.check_content('example.py', source, year=2026) is None
+    fixed = licence_headers.fix_content('example.py', source, year=2026)
+    assert fixed == source
+    assert 'Copyright (C) 2020' in fixed
+
+
 def test_literal_year_token_fails():
     header = licence_headers._render_header('hash', year=2026).replace('2026', '{{ .Year }}')
     assert licence_headers.check_content('example.py', header, 2026) is not None

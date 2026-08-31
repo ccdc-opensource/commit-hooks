@@ -92,7 +92,7 @@ def _header_line_matches(actual, expected):
         marker = expected.split(' ', 1)[0]
         pattern = (
             rf'{re.escape(marker)} This code is Copyright \(C\) '
-            r'(?:\d{4}(?:, \d{4})?|\{\{ \.Year \}\}) '
+            r'\d{4}(?:, \d{4})? '
             r'The Cambridge Crystallographic Data Centre \(CCDC\)'
         )
         return re.fullmatch(pattern, actual) is not None
@@ -164,6 +164,20 @@ def _existing_header_end(text, offset, style, expected):
     return _known_header_prefix_end(text, offset, expected)
 
 
+def _has_valid_header(text, offset, expected):
+    '''Check if text starting at offset contains a valid compliant header (accepting any valid year).'''
+    if text.startswith(expected, offset):
+        return True
+    actual_lines = [line.strip() for line in text[offset:].splitlines()]
+    expected_lines = [line.strip() for line in expected.splitlines()]
+    if len(actual_lines) < len(expected_lines):
+        return False
+    for actual, exp in zip(actual_lines[:len(expected_lines)], expected_lines):
+        if not _header_line_matches(actual, exp):
+            return False
+    return True
+
+
 def check_content(filename, data, year=None):
     '''Return an error message when a supported file lacks the exact header.'''
     style = _comment_style(filename)
@@ -177,7 +191,7 @@ def check_content(filename, data, year=None):
     newline = '\r\n' if '\r\n' in text else '\n'
     offset = _header_offset(filename, text, style)
     expected = _render_header(style, newline, year)
-    if text.startswith(expected, offset):
+    if _has_valid_header(text, offset, expected):
         return None
     return 'missing or non-compliant CCDC copyright and licence header'
 
@@ -192,7 +206,7 @@ def fix_content(filename, data, year=None):
     newline = '\r\n' if '\r\n' in text else '\n'
     offset = _header_offset(filename, text, style)
     expected = _render_header(style, newline, year)
-    if text.startswith(expected, offset):
+    if _has_valid_header(text, offset, expected):
         return data
 
     header_end = _existing_header_end(text, offset, style, expected)
