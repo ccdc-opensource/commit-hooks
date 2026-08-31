@@ -52,8 +52,8 @@ headers and file compliance rules in CI.
 - uses: ccdc-opensource/commit-hooks@v8
   with:
     commitMessage: ${{ env.commit_message }}
-    # Optional: enable CCDC license header validation on PR changed files
-    licenseCheck: true  # default: false (opt-in)
+    # Optional: enable CCDC licence header validation on PR changed files
+    licenceCheck: true  # default: false (opt-in)
 ```
 
 A complete workflow template for CI is available in [templates/compliance.yml](templates/compliance.yml).

@@ -3,105 +3,105 @@ import sys
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'main'))
-import license_headers
+import licence_headers
 
 
 def test_complete_hash_header_passes():
-    header = license_headers._render_header('hash', year=2026)
-    assert license_headers.check_content('example.py', header + 'print("ok")\n', 2026) is None
+    header = licence_headers._render_header('hash', year=2026)
+    assert licence_headers.check_content('example.py', header + 'print("ok")\n', 2026) is None
 
 
 def test_literal_year_token_fails():
-    header = license_headers._render_header('hash', year=2026).replace('2026', '{{ .Year }}')
-    assert license_headers.check_content('example.py', header, 2026) is not None
+    header = licence_headers._render_header('hash', year=2026).replace('2026', '{{ .Year }}')
+    assert licence_headers.check_content('example.py', header, 2026) is not None
 
 
 def test_removed_licence_line_fails_and_is_repaired():
-    header = license_headers._render_header('hash', year=2026)
+    header = licence_headers._render_header('hash', year=2026)
     broken = header.replace('# copied, except in accordance with a valid licence agreement with CCDC and\n', '')
     content = broken + 'print("ok")\n'
-    assert license_headers.check_content('example.py', content, 2026) is not None
-    fixed = license_headers.fix_content('example.py', content, 2026)
+    assert licence_headers.check_content('example.py', content, 2026) is not None
+    fixed = licence_headers.fix_content('example.py', content, 2026)
     assert fixed == header + 'print("ok")\n'
 
 
 def test_missing_header_is_added_after_shebang():
-    fixed = license_headers.fix_content('script.py', '#!/usr/bin/env python3\nprint("ok")\n', 2026)
+    fixed = licence_headers.fix_content('script.py', '#!/usr/bin/env python3\nprint("ok")\n', 2026)
     assert fixed.startswith('#!/usr/bin/env python3\n#\n# This code is Copyright (C) 2026')
     assert fixed.endswith('print("ok")\n')
 
 
 def test_python_encoding_declaration_is_preserved_before_header():
-    fixed = license_headers.fix_content('script.py', '# -*- coding: latin-1 -*-\nprint("ok")\n', 2026)
+    fixed = licence_headers.fix_content('script.py', '# -*- coding: latin-1 -*-\nprint("ok")\n', 2026)
     assert fixed.startswith('# -*- coding: latin-1 -*-\n#\n# This code is Copyright (C) 2026')
 
 
 def test_second_line_python_encoding_declaration_preserves_comment_prefix():
     source = '# generated source\n# coding=latin-1\nprint("ok")\n'
-    fixed = license_headers.fix_content('script.py', source, 2026)
+    fixed = licence_headers.fix_content('script.py', source, 2026)
     prefix = '# generated source\n# coding=latin-1\n#\n# This code is Copyright (C) 2026'
     assert fixed.startswith(prefix)
-    assert license_headers.check_content('script.py', fixed, 2026) is None
+    assert licence_headers.check_content('script.py', fixed, 2026) is None
 
 
 def test_encoding_declaration_after_shebang_is_preserved():
     source = '#!/usr/bin/env python3\n# -*- coding: latin-1 -*-\nprint("ok")\n'
-    fixed = license_headers.fix_content('script.py', source, 2026)
+    fixed = licence_headers.fix_content('script.py', source, 2026)
     prefix = '#!/usr/bin/env python3\n# -*- coding: latin-1 -*-\n#\n# This code is Copyright (C) 2026'
     assert fixed.startswith(prefix)
-    assert license_headers.check_content('script.py', fixed, 2026) is None
+    assert licence_headers.check_content('script.py', fixed, 2026) is None
 
 
 def test_non_utf8_python_file_preserves_declared_encoding():
     source = '# generated\n# coding=latin-1\nname = "caf\xe9"\n'.encode('latin-1')
-    fixed = license_headers.fix_content('script.py', source, 2026)
+    fixed = licence_headers.fix_content('script.py', source, 2026)
     assert isinstance(fixed, bytes)
     assert b'# coding=latin-1\n#\n# This code is Copyright (C) 2026' in fixed
     assert b'caf\xe9' in fixed
-    assert license_headers.check_content('script.py', fixed, 2026) is None
+    assert licence_headers.check_content('script.py', fixed, 2026) is None
 
 
 def test_empty_python_file_gets_header():
-    fixed = license_headers.fix_content('empty.py', b'', 2026)
+    fixed = licence_headers.fix_content('empty.py', b'', 2026)
     assert fixed.startswith(b'#\n# This code is Copyright (C) 2026')
-    assert license_headers.check_content('empty.py', fixed, 2026) is None
+    assert licence_headers.check_content('empty.py', fixed, 2026) is None
 
 
 def test_utf8_bom_remains_at_byte_zero_for_supported_non_python_files():
     for filename in ['example.yml', 'example.js', 'example.cpp']:
-        fixed = license_headers.fix_content(filename, b'\xef\xbb\xbfvalue\n', 2026)
+        fixed = licence_headers.fix_content(filename, b'\xef\xbb\xbfvalue\n', 2026)
         assert fixed.startswith(b'\xef\xbb\xbf')
         assert fixed.count(b'\xef\xbb\xbf') == 1
-        assert license_headers.check_content(filename, fixed, 2026) is None
+        assert licence_headers.check_content(filename, fixed, 2026) is None
 
 
 def test_unterminated_shebang_is_separated_from_header():
     for filename, shebang in [('script.py', b'#!/usr/bin/env python3'), ('script.sh', b'#!/bin/sh')]:
-        fixed = license_headers.fix_content(filename, shebang, 2026)
+        fixed = licence_headers.fix_content(filename, shebang, 2026)
         assert fixed.startswith(shebang + b'\n#\n# This code is Copyright (C) 2026')
 
 
 def test_unterminated_encoding_declaration_is_separated_from_header():
     declaration = b'# coding=latin-1'
-    fixed = license_headers.fix_content('script.py', declaration, 2026)
+    fixed = licence_headers.fix_content('script.py', declaration, 2026)
     assert fixed.startswith(declaration + b'\n#\n# This code is Copyright (C) 2026')
 
 
 def test_copywrite_one_line_header_is_replaced():
     old_header = '# Copyright The Cambridge Crystallographic Data Centre (CCDC) 2021, 2026\n\n'
     source_comment = '# keep this source comment\n'
-    fixed = license_headers.fix_content('example.py', old_header + source_comment + 'print("ok")\n', 2026)
+    fixed = licence_headers.fix_content('example.py', old_header + source_comment + 'print("ok")\n', 2026)
     assert fixed.startswith('#\n# This code is Copyright (C) 2026')
     assert old_header not in fixed
     assert fixed.endswith(source_comment + 'print("ok")\n')
 
 
 def test_truncated_full_header_is_replaced_without_losing_source_comment():
-    header = license_headers._render_header('hash', year=2026)
-    old_header = license_headers._render_header('hash', year=2025)
+    header = licence_headers._render_header('hash', year=2026)
+    old_header = licence_headers._render_header('hash', year=2025)
     truncated = old_header.split('# law.\n', 1)[0]
     source = '# keep this source comment\nprint("ok")\n'
-    fixed = license_headers.fix_content('example.py', truncated + source, 2026)
+    fixed = licence_headers.fix_content('example.py', truncated + source, 2026)
     assert fixed == header + source
     assert fixed.count('This code is Copyright (C)') == 1
 
@@ -124,8 +124,8 @@ def test_heavily_damaged_full_header_is_replaced_without_duplication():
 
 '''
     source = '# keep this source comment\nhello\n'
-    header = license_headers._render_header('hash', year=2026)
-    fixed = license_headers.fix_content('example.py', damaged + source, 2026)
+    header = licence_headers._render_header('hash', year=2026)
+    fixed = licence_headers.fix_content('example.py', damaged + source, 2026)
     assert fixed == header + '\n' + source
     assert fixed.count('This code is Copyright') == 1
 
@@ -149,19 +149,19 @@ def test_damaged_copyright_identity_line_is_repaired_without_duplication():
 
 '''
     source = '# keep this source comment\nhello\n'
-    header = license_headers._render_header('hash', year=2026)
-    fixed = license_headers.fix_content('example.py', damaged + source, 2026)
+    header = licence_headers._render_header('hash', year=2026)
+    fixed = licence_headers.fix_content('example.py', damaged + source, 2026)
     assert fixed == header + '\n' + source
     assert fixed.count('This code is Copyright') == 1
 
 
 def test_slash_header_is_added():
-    fixed = license_headers.fix_content('example.cpp', 'int main() {}\n', 2026)
+    fixed = licence_headers.fix_content('example.cpp', 'int main() {}\n', 2026)
     assert fixed.startswith('//\n// This code is Copyright (C) 2026')
-    assert license_headers.check_content('example.cpp', fixed, 2026) is None
+    assert licence_headers.check_content('example.cpp', fixed, 2026) is None
 
 
 def test_ignored_and_unsupported_files_are_skipped():
-    assert license_headers.check_content('.github/workflows/check.yml', 'name: check\n', 2026) is None
-    assert license_headers.check_content('templates/check.yml', 'name: check\n', 2026) is None
-    assert license_headers.check_content('README.md', '# Read me\n', 2026) is None
+    assert licence_headers.check_content('.github/workflows/check.yml', 'name: check\n', 2026) is None
+    assert licence_headers.check_content('templates/check.yml', 'name: check\n', 2026) is None
+    assert licence_headers.check_content('README.md', '# Read me\n', 2026) is None

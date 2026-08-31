@@ -24,7 +24,7 @@ from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
-import license_headers
+import licence_headers
 import os
 import platform
 import re
@@ -1074,7 +1074,7 @@ def run_copywrite(files):
                 _fail(f'Unable to inspect unstaged changes:\n{unstaged.stderr.strip()}')
                 return 1
 
-        if license_headers.process_files(files, fix=not is_check_mode) != 0:
+        if licence_headers.process_files(files, fix=not is_check_mode) != 0:
             _fail('Copyright and licence header check failed.')
             return 1
 
@@ -1101,14 +1101,14 @@ class TestRunCopywrite(unittest.TestCase):
         self.assertEqual(0, run_copywrite(['example.py']))
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.license_headers.process_files', return_value=1)
+    @patch('githooks.licence_headers.process_files', return_value=1)
     def test_check_failure_blocks_commit(self, process_files, _config):
         self.assertEqual(1, run_copywrite(['example.py']))
         process_files.assert_called_once_with(['example.py'], fix=False)
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    @patch('githooks.license_headers.process_files', return_value=0)
+    @patch('githooks.licence_headers.process_files', return_value=0)
     def test_fix_restages_files(self, process_files, run, _config):
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
@@ -1120,7 +1120,7 @@ class TestRunCopywrite(unittest.TestCase):
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    @patch('githooks.license_headers.process_files', return_value=0)
+    @patch('githooks.licence_headers.process_files', return_value=0)
     def test_restage_failure_blocks_commit(self, _process_files, run, _config):
         run.side_effect = [
             subprocess.CompletedProcess([], 0, '', ''),
@@ -1136,7 +1136,7 @@ class TestRunCopywrite(unittest.TestCase):
         run.assert_called_once()
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.license_headers.process_files', side_effect=OSError('cannot read'))
+    @patch('githooks.licence_headers.process_files', side_effect=OSError('cannot read'))
     def test_processing_error_blocks_commit(self, _process_files, _config):
         self.assertEqual(1, run_copywrite(['example.py']))
 
