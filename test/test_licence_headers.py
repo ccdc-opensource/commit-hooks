@@ -100,7 +100,7 @@ def test_unterminated_encoding_declaration_is_separated_from_header():
     assert fixed.startswith(declaration + b'\n#\n# This code is Copyright (C) 2026')
 
 
-def test_copywrite_one_line_header_is_replaced():
+def test_legacy_one_line_header_is_replaced():
     old_header = '# Copyright The Cambridge Crystallographic Data Centre (CCDC) 2021, 2026\n\n'
     source_comment = '# keep this source comment\n'
     fixed = licence_headers.fix_content('example.py', old_header + source_comment + 'print("ok")\n', 2026)
@@ -178,6 +178,17 @@ def test_truncated_header_does_not_consume_source_code_before_law_comment():
     expected_header = licence_headers._render_header('hash', year=2026)
     assert fixed == expected_header + source
     assert 'def calculate():' in fixed
+
+
+def test_truncated_header_preserves_source_comment_matching_later_header_line():
+    truncated = '''#
+# This code is Copyright (C) 2026 The Cambridge Crystallographic Data Centre (CCDC)
+'''
+    source = '# notice.\nprint("ok")\n'
+    fixed = licence_headers.fix_content('example.py', truncated + source, 2026)
+    expected_header = licence_headers._render_header('hash', year=2026)
+    assert fixed == expected_header + source
+    assert '# notice.\n' in fixed
 
 
 def test_slash_header_is_added():

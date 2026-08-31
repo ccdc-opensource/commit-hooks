@@ -33,7 +33,7 @@ IGNORED_DIRECTORIES = {
     'node_modules', 'dist', 'build', '.venv', 'venv', '__pycache__'
 }
 IGNORED_SUFFIXES = ('.designer.cs', '.g.cs', '.min.js', '.lock')
-TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / 'copywrite' / 'headers'
+TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / 'headers'
 PYTHON_ENCODING_PATTERN = re.compile(r'^[ \t\f]*#.*?coding[:=][ \t]*[-\w.]+')
 LEGACY_HEADER_PATTERN = re.compile(
     r'^(#|//) Copyright The Cambridge Crystallographic Data Centre '
@@ -115,18 +115,11 @@ def _known_header_prefix_end(text, offset, expected):
         return offset
 
     header_end = actual_lines[1][1]
-    expected_index = 2
-    for _, line_end, actual in actual_lines[2:]:
-        if actual == '':
-            continue
-        match_index = next(
-            (index for index in range(expected_index, len(expected_lines))
-             if _header_line_matches(actual, expected_lines[index])),
-            None
-        )
-        if match_index is None:
+    for expected_index, (_, line_end, actual) in enumerate(actual_lines[2:], start=2):
+        if expected_index >= len(expected_lines):
             break
-        expected_index = match_index + 1
+        if not _header_line_matches(actual, expected_lines[expected_index]):
+            break
         header_end = line_end
     return header_end
 

@@ -226,14 +226,16 @@ def get_commit_files():
         if '\t' in line:
             parts = line.split('\t')
             status = parts[0].strip()
-            path = parts[-1].strip()
+            path = parts[-1]
         else:
             parts = line.split(None, 1)
             if len(parts) != 2:
                 continue
-            status, path = parts[0].strip(), parts[1].strip()
+            status, path = parts[0].strip(), parts[1]
         if status in ['M', 'A']:
             result[status].append(path)
+        elif status.startswith(('R', 'C')):
+            result['A'].append(path)
     return result
 
 
@@ -347,12 +349,21 @@ class TestPushRanges(unittest.TestCase):
             ['git', 'diff', '--unified=0', 'HEAD~', '--', 'example.py']
         )
 
-    def test_files_with_spaces(self):
+    def test_files_with_spaces_and_renames(self):
         with patch.dict(os.environ, {}, clear=True), patch('githooks._get_output') as get_output:
-            get_output.return_value = 'M\tpath/with spaces/file.py\nA\tanother file.js\n'
+            get_output.return_value = (
+                'M\tpath/with spaces/file.py\n'
+                'A\tanother file.js\n'
+                'R100\told/name.py\tnew/renamed file.py\n'
+                'C100\tsrc.h\tdst/copied file.h\n'
+                'A\tbad/end/space.txt \n'
+            )
             files = get_commit_files()
             self.assertEqual(['path/with spaces/file.py'], files['M'])
-            self.assertEqual(['another file.js'], files['A'])
+            self.assertEqual(
+                ['another file.js', 'new/renamed file.py', 'dst/copied file.h', 'bad/end/space.txt '],
+                files['A']
+            )
 
 
 def yield_changed_lines(changed_lines):
