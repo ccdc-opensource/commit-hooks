@@ -117,29 +117,45 @@ def _known_header_prefix_end(text, offset, expected):
         position += len(line)
 
     expected_lines = [line.strip() for line in expected.splitlines()]
-    if len(actual_lines) < 2 or len(expected_lines) < 2:
-        return offset
-    if actual_lines[0][2] != expected_lines[0]:
-        return offset
-    if not _header_line_matches(actual_lines[1][2], expected_lines[1]):
+    if not actual_lines or not expected_lines:
         return offset
 
-    header_end = actual_lines[1][1]
-    for expected_index, (_, line_end, actual) in enumerate(actual_lines[2:], start=2):
-        if expected_index >= len(expected_lines):
+    if actual_lines[0][2] == expected_lines[0] and len(actual_lines) > 1:
+        if not _header_line_matches(actual_lines[1][2], expected_lines[1]):
+            return offset
+        header_end = actual_lines[1][1]
+        start_idx = 2
+        exp_start_idx = 2
+    elif _header_line_matches(actual_lines[0][2], expected_lines[1]):
+        header_end = actual_lines[0][1]
+        start_idx = 1
+        exp_start_idx = 2
+    else:
+        return offset
+
+    for actual_idx, exp_idx in enumerate(range(exp_start_idx, len(expected_lines)), start=start_idx):
+        if actual_idx >= len(actual_lines):
             break
-        if not _header_line_matches(actual, expected_lines[expected_index]):
+        if not _header_line_matches(actual_lines[actual_idx][2], expected_lines[exp_idx]):
             break
-        header_end = line_end
+        header_end = actual_lines[actual_idx][1]
     return header_end
 
 
 def _damaged_full_header_end(text, offset, style):
     marker = '#' if style == 'hash' else '//'
     lines = text[offset:].splitlines(keepends=True)
-    if len(lines) < 2 or lines[0].strip() != marker:
+    if not lines:
         return offset
-    identity_line = lines[1].strip()
+
+    first_line = lines[0].strip()
+    if first_line == marker and len(lines) > 1:
+        identity_line = lines[1].strip()
+        start_index = 2
+    else:
+        identity_line = first_line
+        start_index = 1
+
     if (
         not identity_line.startswith(f'{marker} This code is ')
         or 'Crystallographic Data Centre (CCDC)' not in identity_line
@@ -152,7 +168,8 @@ def _damaged_full_header_end(text, offset, style):
         line_positions.append((position, position + len(line), line.strip()))
         position += len(line)
 
-    for index, (_, line_end, stripped) in enumerate(line_positions[2:], start=2):
+    for index in range(start_index, len(line_positions)):
+        _, line_end, stripped = line_positions[index]
         if stripped and not stripped.startswith(marker):
             break
         if stripped.startswith(marker) and stripped.endswith('law.'):

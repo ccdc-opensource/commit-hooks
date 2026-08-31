@@ -165,6 +165,28 @@ def test_heavily_damaged_full_header_is_replaced_without_duplication():
     assert fixed.count('This code is Copyright') == 1
 
 
+def test_unpadded_header_without_leading_and_trailing_marker_is_repaired():
+    unpadded = '''# This code is Copyright (C) 2026 The Cambridge Crystallographic Data Centre (CCDC)
+# of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC. This
+# code may not be used, reproduced, translated, modified, disassembled or
+# copied, except in accordance with a valid licence agreement with CCDC and
+# may NOT be disclosed or redistributed in any form, either in whole or in
+# part, to any third party. All copies of this code made in accordance with a
+# valid licence agreement as referred to above must contain this copyright
+# notice.
+
+# No representations, warranties, or liabilities are expressed or implied in
+# the supply of this code by CCDC, its servants or agents, except where such
+# exclusion or limitation is prohibited, void or unenforceable under governing
+# law.
+'''
+    source = 'print("hello world")\n'
+    fixed = licence_headers.fix_content('example.py', unpadded + '\n' + source, 2026)
+    expected_header = licence_headers._render_header('hash', year=2026)
+    assert fixed == expected_header + '\n' + source
+    assert fixed.count('This code is Copyright') == 1
+
+
 def test_damaged_copyright_identity_line_is_repaired_without_duplication():
     damaged = '''#
 # This code is Cop Crystallographic Data Centre (CCDC)
