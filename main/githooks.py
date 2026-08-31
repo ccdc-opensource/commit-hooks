@@ -24,13 +24,17 @@ from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
-import licence_headers
 import os
 import platform
 import re
 import subprocess
 import unittest
 import sys
+
+try:
+    import licence_headers
+except ImportError:
+    licence_headers = None
 
 
 # Absolute file size limit (in MB) - it's 100MB on github.com
@@ -1084,6 +1088,18 @@ def run_licence_check(files):
         return 1
     is_check_mode = mode in ['check', 'plan', 'verify']
 
+    global licence_headers
+    if licence_headers is None:
+        try:
+            import licence_headers as _licence_headers
+            licence_headers = _licence_headers
+        except ImportError:
+            _fail(
+                'Licence header checking is enabled but the '
+                '"licence_headers" module is not installed.'
+            )
+            return 1
+
     try:
         if not is_check_mode:
             unstaged = subprocess.run(
@@ -1164,6 +1180,17 @@ class TestRunLicenceCheck(unittest.TestCase):
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
     @patch('githooks.licence_headers.process_files', side_effect=OSError('cannot read'))
     def test_processing_error_blocks_commit(self, _process_files, _config):
+        self.assertEqual(1, run_licence_check(['example.py']))
+
+    @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks.licence_headers', None)
+    def test_missing_module_allowed_when_disabled(self, _config):
+        self.assertEqual(0, run_licence_check(['example.py']))
+
+    @patch('githooks.get_config_setting', side_effect=['true', 'check'])
+    @patch('githooks.licence_headers', None)
+    @patch('builtins.__import__', side_effect=ImportError('No module named licence_headers'))
+    def test_missing_module_fails_when_enabled(self, _import, _config):
         self.assertEqual(1, run_licence_check(['example.py']))
 
 
