@@ -168,6 +168,18 @@ def test_damaged_copyright_identity_line_is_repaired_without_duplication():
     assert fixed.count('This code is Copyright') == 1
 
 
+def test_truncated_header_does_not_consume_source_code_before_law_comment():
+    truncated = '''#
+# This code is Copyright (C) 2026 The Cambridge Crystallographic Data Centre (CCDC)
+# of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC. This
+'''
+    source = 'def calculate():\n    return 42\n# according to the law.\n'
+    fixed = licence_headers.fix_content('example.py', truncated + source, 2026)
+    expected_header = licence_headers._render_header('hash', year=2026)
+    assert fixed == expected_header + source
+    assert 'def calculate():' in fixed
+
+
 def test_slash_header_is_added():
     fixed = licence_headers.fix_content('example.cpp', 'int main() {}\n', 2026)
     assert fixed.startswith('//\n// This code is Copyright (C) 2026')

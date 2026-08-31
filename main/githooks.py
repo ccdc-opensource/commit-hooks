@@ -221,9 +221,19 @@ def get_commit_files():
     output = _get_output(commands)
     result = defaultdict(list)
     for line in output.splitlines():
-        parts = line.split()
-        if parts[-2] in ['M', 'A']:
-            result[parts[-2]].append(parts[-1])
+        if not line:
+            continue
+        if '\t' in line:
+            parts = line.split('\t')
+            status = parts[0].strip()
+            path = parts[-1].strip()
+        else:
+            parts = line.split(None, 1)
+            if len(parts) != 2:
+                continue
+            status, path = parts[0].strip(), parts[1].strip()
+        if status in ['M', 'A']:
+            result[status].append(path)
     return result
 
 
@@ -336,6 +346,13 @@ class TestPushRanges(unittest.TestCase):
             ['git', 'diff', '--ignore-submodules', '--name-status', 'HEAD~..', '--'],
             ['git', 'diff', '--unified=0', 'HEAD~', '--', 'example.py']
         )
+
+    def test_files_with_spaces(self):
+        with patch.dict(os.environ, {}, clear=True), patch('githooks._get_output') as get_output:
+            get_output.return_value = 'M\tpath/with spaces/file.py\nA\tanother file.js\n'
+            files = get_commit_files()
+            self.assertEqual(['path/with spaces/file.py'], files['M'])
+            self.assertEqual(['another file.js'], files['A'])
 
 
 def yield_changed_lines(changed_lines):

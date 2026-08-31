@@ -150,6 +150,8 @@ def _damaged_full_header_end(text, offset, style):
         position += len(line)
 
     for index, (_, line_end, stripped) in enumerate(line_positions[2:], start=2):
+        if stripped and not stripped.startswith(marker):
+            break
         if stripped.startswith(marker) and stripped.endswith('law.'):
             if index + 1 < len(line_positions) and line_positions[index + 1][2] == marker:
                 return line_positions[index + 1][1]
