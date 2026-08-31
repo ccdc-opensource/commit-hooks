@@ -75,9 +75,6 @@ def _decode_content(filename, data):
 
 
 def _header_offset(filename, text, style):
-    if style != 'hash':
-        return 0
-
     lines = text.splitlines(keepends=True)
     has_shebang = bool(lines and lines[0].startswith('#!'))
     if not str(filename).lower().endswith('.py'):
@@ -215,7 +212,7 @@ def process_files(files, fix=False, year=None):
     failures = 0
     for filename in files:
         path = Path(filename)
-        if not path.is_file() or _comment_style(filename) is None:
+        if path.is_symlink() or not path.is_file() or _comment_style(filename) is None:
             continue
         data = path.read_bytes()
         issue = check_content(filename, data, year)

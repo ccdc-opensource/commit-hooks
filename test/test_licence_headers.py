@@ -31,6 +31,15 @@ def test_missing_header_is_added_after_shebang():
     assert fixed.endswith('print("ok")\n')
 
 
+def test_missing_slash_header_is_added_after_shebang():
+    for filename in ['cli.js', 'cli.ts']:
+        source = '#!/usr/bin/env node\nconsole.log("ok");\n'
+        fixed = licence_headers.fix_content(filename, source, 2026)
+        assert fixed.startswith('#!/usr/bin/env node\n//\n// This code is Copyright (C) 2026')
+        assert fixed.endswith('console.log("ok");\n')
+        assert licence_headers.check_content(filename, fixed, 2026) is None
+
+
 def test_python_encoding_declaration_is_preserved_before_header():
     fixed = licence_headers.fix_content('script.py', '# -*- coding: latin-1 -*-\nprint("ok")\n', 2026)
     assert fixed.startswith('# -*- coding: latin-1 -*-\n#\n# This code is Copyright (C) 2026')
@@ -79,6 +88,10 @@ def test_unterminated_shebang_is_separated_from_header():
     for filename, shebang in [('script.py', b'#!/usr/bin/env python3'), ('script.sh', b'#!/bin/sh')]:
         fixed = licence_headers.fix_content(filename, shebang, 2026)
         assert fixed.startswith(shebang + b'\n#\n# This code is Copyright (C) 2026')
+    for filename in ['script.js', 'script.ts']:
+        shebang = b'#!/usr/bin/env node'
+        fixed = licence_headers.fix_content(filename, shebang, 2026)
+        assert fixed.startswith(shebang + b'\n//\n// This code is Copyright (C) 2026')
 
 
 def test_unterminated_encoding_declaration_is_separated_from_header():
@@ -165,3 +178,22 @@ def test_ignored_and_unsupported_files_are_skipped():
     assert licence_headers.check_content('.github/workflows/check.yml', 'name: check\n', 2026) is None
     assert licence_headers.check_content('templates/check.yml', 'name: check\n', 2026) is None
     assert licence_headers.check_content('README.md', '# Read me\n', 2026) is None
+
+
+def test_process_files_skips_symlinks(tmp_path):
+    target = tmp_path / 'target.py'
+    target_content = 'print("target")\n'
+    target.write_text(target_content, encoding='utf-8')
+
+    symlink = tmp_path / 'link.py'
+    try:
+        symlink.symlink_to(target)
+    except OSError:
+        import pytest
+        pytest.skip('Symlinks not supported in current environment or permissions')
+
+    # Check mode should skip symlink and report 0 failures
+    assert licence_headers.process_files([str(symlink)], fix=False, year=2026) == 0
+    # Fix mode should skip symlink without modifying target file
+    assert licence_headers.process_files([str(symlink)], fix=True, year=2026) == 0
+    assert target.read_text(encoding='utf-8') == target_content
