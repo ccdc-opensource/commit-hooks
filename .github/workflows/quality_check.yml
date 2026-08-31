@@ -20,4 +20,4 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --statistics
       - name: Pytest
         run: |
-          pytest main/githooks.py
+          pytest main/githooks.py test/test_licence_headers.py

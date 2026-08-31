@@ -27,10 +27,14 @@ from unittest.mock import patch
 import os
 import platform
 import re
-import shutil
 import subprocess
 import unittest
 import sys
+
+try:
+    import licence_headers
+except ImportError:
+    licence_headers = None
 
 
 # Absolute file size limit (in MB) - it's 100MB on github.com
@@ -216,14 +220,26 @@ def get_commit_files():
             else:
                 commands += ['HEAD~..', '--']
     else:
-        commands = ['git', 'diff-index', '--ignore-submodules', 'HEAD', '--cached']
+        commands = ['git', 'diff', '--cached', '--ignore-submodules', '--name-status', '--']
 
     output = _get_output(commands)
     result = defaultdict(list)
     for line in output.splitlines():
-        parts = line.split()
-        if parts[-2] in ['M', 'A']:
-            result[parts[-2]].append(parts[-1])
+        if not line:
+            continue
+        if '\t' in line:
+            parts = line.split('\t')
+            status = parts[0].strip()
+            path = parts[-1]
+        else:
+            parts = line.split(None, 1)
+            if len(parts) != 2:
+                continue
+            status, path = parts[0].strip(), parts[1]
+        if status in ['M', 'A']:
+            result[status].append(path)
+        elif status.startswith(('R', 'C')):
+            result['A'].append(path)
     return result
 
 
@@ -289,7 +305,7 @@ def get_changed_lines(modified_file):
             else:
                 commands += ['HEAD~', '--', modified_file]
     else:
-        commands = [f'git', 'diff-index', 'HEAD', '--unified=0', '--', f'{modified_file}']
+        commands = [f'git', 'diff', '--cached', '--unified=0', '--', f'{modified_file}']
     output = _get_output(commands)
 
     lines = []
@@ -336,6 +352,22 @@ class TestPushRanges(unittest.TestCase):
             ['git', 'diff', '--ignore-submodules', '--name-status', 'HEAD~..', '--'],
             ['git', 'diff', '--unified=0', 'HEAD~', '--', 'example.py']
         )
+
+    def test_files_with_spaces_and_renames(self):
+        with patch.dict(os.environ, {}, clear=True), patch('githooks._get_output') as get_output:
+            get_output.return_value = (
+                'M\tpath/with spaces/file.py\n'
+                'A\tanother file.js\n'
+                'R100\told/name.py\tnew/renamed file.py\n'
+                'C100\tsrc.h\tdst/copied file.h\n'
+                'A\tbad/end/space.txt \n'
+            )
+            files = get_commit_files()
+            self.assertEqual(['path/with spaces/file.py'], files['M'])
+            self.assertEqual(
+                ['another file.js', 'new/renamed file.py', 'dst/copied file.h', 'bad/end/space.txt '],
+                files['A']
+            )
 
 
 def yield_changed_lines(changed_lines):
@@ -1033,54 +1065,35 @@ class TestCheckCommitMessage(unittest.TestCase):
         _test('Close but no cigar abc-1234', False)
 
 
-def run_copywrite(files):
-    '''Run copywrite to automatically check or fix license headers.
+def run_licence_check(files):
+    '''Check or fix complete CCDC licence headers.
 
     Configurable via git config:
-      - `git config --global hooks.copywrite true|false` (default: false, opt-in)
-      - `git config --global hooks.copywriteMode fix|check` (default: fix)
+      - `git config --global hooks.licenceCheck true|false` (default: false, opt-in)
+      - `git config --global hooks.licenceCheckMode fix|check` (default: fix)
         - fix: automatically adds/updates headers and restages files
         - check: checks header compliance and warns/fails without modifying
-
-    If copywrite is not installed and the hook is enabled, print a soft warning and return 0 (do not block commit).
     '''
     if not files:
         return 0
 
     # Opt-in: only run if explicitly enabled in git config
-    enabled_setting = get_config_setting('hooks.copywrite')
+    enabled_setting = get_config_setting('hooks.licenceCheck')
     if enabled_setting is None or enabled_setting.lower() not in ['true', '1', 'yes', 'on']:
         return 0
 
-    copywrite_exe = shutil.which('copywrite')
-    if not copywrite_exe:
-        print(' WARNING: "copywrite" not found on PATH. Skipping copyright header check.')
-        print(' To enable automatic copyright formatting, install copywrite:')
-        print('   - Windows: choco install copywrite')
-        print('   - macOS: brew install hashicorp/tap/copywrite')
-        print('   - Linux: go install github.com/hashicorp/copywrite@latest')
-        return 0
-
-    hook_root = Path(__file__).resolve().parent.parent
-    config_path = hook_root / 'main' / 'copywrite' / '.copywrite.hcl'
-    if not config_path.is_file():
-        _fail(f'Copywrite configuration not found: {config_path}')
-        return 1
-
-    env = os.environ.copy()
-    env['COPYWRITE_HOOK_ROOT'] = str(hook_root)
-
-    mode = (get_config_setting('hooks.copywriteMode') or 'fix').lower()
+    mode = (get_config_setting('hooks.licenceCheckMode') or 'fix').lower()
     if mode not in ['fix', 'check', 'plan', 'verify']:
-        _fail(f'Unsupported hooks.copywriteMode value: {mode}')
+        _fail(f'Unsupported hooks.licenceCheckMode value: {mode}')
         return 1
     is_check_mode = mode in ['check', 'plan', 'verify']
 
-    cmd = [copywrite_exe, 'headers', f'--config={config_path}']
-    if is_check_mode:
-        cmd.append('--plan')
-    cmd.append('--')
-    cmd.extend(files)
+    if licence_headers is None:
+        _fail(
+            'Licence header checking is enabled but the '
+            '"licence_headers" module is not installed.'
+        )
+        return 1
 
     try:
         if not is_check_mode:
@@ -1091,24 +1104,17 @@ def run_copywrite(files):
                 text=True
             )
             if unstaged.returncode == 1:
-                _fail('Copywrite fix mode cannot run with unstaged changes in staged files. '
-                      'Stage or stash those changes, or use hooks.copywriteMode check.')
+                _fail('Licence check fix mode cannot run with unstaged changes in staged files. '
+                      'Stage or stash those changes, or use hooks.licenceCheckMode check.')
                 return 1
             if unstaged.returncode != 0:
                 _fail(f'Unable to inspect unstaged changes:\n{unstaged.stderr.strip()}')
                 return 1
 
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env
-        )
-        if proc.returncode != 0:
-            details = '\n'.join(output.strip() for output in [proc.stdout, proc.stderr] if output.strip())
-            _fail(f'Copyright header update failed:\n{details}')
+        if licence_headers.process_files(files, fix=not is_check_mode) != 0:
+            _fail('Copyright and licence header check failed.')
             return 1
+
         if not is_check_mode:
             restage = subprocess.run(
                 ['git', 'add', '--'] + files,
@@ -1117,77 +1123,81 @@ def run_copywrite(files):
                 text=True
             )
             if restage.returncode != 0:
-                _fail(f'Unable to restage files updated by Copywrite:\n{restage.stderr.strip()}')
+                _fail(f'Unable to restage files updated by the licence header fixer:\n{restage.stderr.strip()}')
                 return 1
-    except (OSError, subprocess.SubprocessError) as error:
-        _fail(f'Failed to run Copywrite: {error}')
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        _fail(f'Failed to process licence headers: {error}')
         return 1
 
     return 0
 
 
-class TestRunCopywrite(unittest.TestCase):
+class TestRunLicenceCheck(unittest.TestCase):
     @patch('githooks.get_config_setting', return_value=None)
     def test_disabled(self, _config):
-        self.assertEqual(0, run_copywrite(['example.py']))
+        self.assertEqual(0, run_licence_check(['example.py']))
 
-    @patch('githooks.shutil.which', return_value=None)
-    @patch('githooks.get_config_setting', return_value='true')
-    def test_missing_executable_is_soft_failure(self, _config, _which):
-        self.assertEqual(0, run_copywrite(['example.py']))
-
-    @patch('githooks.Path.is_file', return_value=True)
-    @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.subprocess.run')
-    def test_check_failure_blocks_commit(self, run, _config, _which, _is_file):
-        run.return_value = subprocess.CompletedProcess([], 1, 'stdout', 'stderr')
-        self.assertEqual(1, run_copywrite(['example.py']))
+    @patch('githooks.licence_headers')
+    def test_check_failure_blocks_commit(self, mock_licence, _config):
+        mock_licence.process_files.return_value = 1
+        self.assertEqual(1, run_licence_check(['example.py']))
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=False)
 
-    @patch('githooks.Path.is_file', return_value=True)
-    @patch('githooks.shutil.which', return_value='copywrite')
+    @patch('githooks.get_config_setting', side_effect=['true', 'check'])
+    @patch('githooks.licence_headers')
+    def test_check_mode_allows_unstaged_changes(self, mock_licence, _config):
+        mock_licence.process_files.return_value = 0
+        self.assertEqual(0, run_licence_check(['example.py']))
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=False)
+
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_fix_restages_files(self, run, _config, _which, _is_file):
+    @patch('githooks.licence_headers')
+    def test_fix_restages_files(self, mock_licence, run, _config):
+        mock_licence.process_files.return_value = 0
         run.side_effect = [
-            subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
         ]
-        self.assertEqual(0, run_copywrite(['example.py']))
-        self.assertEqual(
-            ['copywrite', 'headers', unittest.mock.ANY, '--', 'example.py'],
-            run.call_args_list[1].args[0]
-        )
+        self.assertEqual(0, run_licence_check(['example.py']))
+        mock_licence.process_files.assert_called_once_with(['example.py'], fix=True)
         self.assertEqual(['git', 'add', '--', 'example.py'], run.call_args_list[-1].args[0])
 
-    @patch('githooks.Path.is_file', return_value=True)
-    @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_restage_failure_blocks_commit(self, run, _config, _which, _is_file):
+    @patch('githooks.licence_headers')
+    def test_restage_failure_blocks_commit(self, mock_licence, run, _config):
+        mock_licence.process_files.return_value = 0
         run.side_effect = [
-            subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 1, '', 'cannot add'),
         ]
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
 
-    @patch('githooks.Path.is_file', return_value=True)
-    @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
-    def test_fix_rejects_partially_staged_files(self, run, _config, _which, _is_file):
+    @patch('githooks.licence_headers')
+    def test_fix_rejects_partially_staged_files(self, _mock_licence, run, _config):
         run.return_value = subprocess.CompletedProcess([], 1, '', '')
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
         run.assert_called_once()
 
-    @patch('githooks.Path.is_file', return_value=True)
-    @patch('githooks.shutil.which', return_value='copywrite')
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
-    @patch('githooks.subprocess.run', side_effect=OSError('cannot execute'))
-    def test_subprocess_error_blocks_commit(self, _run, _config, _which, _is_file):
-        self.assertEqual(1, run_copywrite(['example.py']))
+    @patch('githooks.licence_headers')
+    def test_processing_error_blocks_commit(self, mock_licence, _config):
+        mock_licence.process_files.side_effect = OSError('cannot read')
+        self.assertEqual(1, run_licence_check(['example.py']))
+
+    @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks.licence_headers', None)
+    def test_missing_module_allowed_when_disabled(self, _config):
+        self.assertEqual(0, run_licence_check(['example.py']))
+
+    @patch('githooks.get_config_setting', side_effect=['true', 'check'])
+    @patch('githooks.licence_headers', None)
+    def test_missing_module_fails_when_enabled(self, _config):
+        self.assertEqual(1, run_licence_check(['example.py']))
 
 
 def commit_hook(merge=False):
@@ -1205,7 +1215,7 @@ def commit_hook(merge=False):
         staged_files = files['M'] + files['A']
 
         print(' Check and update copyright headers ...')
-        retval += run_copywrite(staged_files)
+        retval += run_licence_check(staged_files)
 
         print(' Check filenames ...')
         retval += check_filenames(staged_files)

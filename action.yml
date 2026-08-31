@@ -20,26 +20,23 @@ inputs:
   commitMessage:
     description: 'The commit message'
     required: true
+  licenceCheck:
+    description: 'Validate CCDC copyright and licence headers on changed files (true/false)'
+    required: false
+    default: 'false'
   licenseCheck:
-    description: 'Validate CCDC copyright and license headers on changed files (true/false)'
+    description: 'Alias for licenceCheck (true/false)'
     required: false
     default: 'false'
 runs:
   using: composite
   steps:
-    - name: Install copywrite
-      if: ${{ inputs.licenseCheck == 'true' }}
-      uses: hashicorp/setup-copywrite@v1.1.3
-
     - name: Validate Header Compliance
-      if: ${{ inputs.licenseCheck == 'true' }}
+      if: ${{ inputs.licenceCheck == 'true' || inputs.licenseCheck == 'true' }}
       shell: bash
       env:
-        COPYWRITE_HOOK_ROOT: ${{ github.action_path }}
         GITHUB_EVENT_BEFORE: ${{ github.event.before }}
       run: |
-        copywrite --version
-
         CHANGED_FILES=()
         if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
           DIFF_REF="origin/${GITHUB_BASE_REF}"
@@ -82,11 +79,7 @@ runs:
 
         if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
           echo "Checking ${#CHANGED_FILES[@]} changed file(s) for header compliance..."
-          copywrite headers \
-            --config "$GITHUB_ACTION_PATH/main/copywrite/.copywrite.hcl" \
-            --plan \
-            -- \
-            "${CHANGED_FILES[@]}"
+          python3 "$GITHUB_ACTION_PATH/main/licence_headers.py" check -- "${CHANGED_FILES[@]}"
         else
           echo "No added or modified files found to check for header compliance."
         fi

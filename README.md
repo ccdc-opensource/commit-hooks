@@ -13,7 +13,7 @@ The commit will be flagged if it includes certain text files with:
 * Tabs
 * Missing terminating newline for certain files
 * Certain C++ #include patterns and std::exception
-* Missing or non-compliant CCDC copyright and license headers (when using the GitHub Action or local copywrite integration)
+* Missing or non-compliant CCDC copyright and licence headers (when header validation is enabled)
 
 The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
@@ -52,42 +52,44 @@ headers and file compliance rules in CI.
 - uses: ccdc-opensource/commit-hooks@v8
   with:
     commitMessage: ${{ env.commit_message }}
-    # Optional: enable CCDC license header validation on PR changed files
-    licenseCheck: true  # default: false (opt-in)
+    # Optional: enable CCDC licence header validation on PR changed files
+    licenceCheck: true  # default: false (opt-in)
 ```
 
 A complete workflow template for CI is available in [templates/compliance.yml](templates/compliance.yml).
 
 # Native Git Hooks
 
-To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers) globally for all repositories on your machine:
+To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers):
 
 1. Clone this repository.
-2. Run:
-   ```bash
-   git config --global core.hooksPath <path-to-cloned-repo>/main
-   ```
-3. (Optional) Install `copywrite` to automatically add and format CCDC copyright headers on commit:
-   * **Windows:** `choco install copywrite`
-   * **macOS:** `brew install hashicorp/tap/copywrite`
-   * **Linux:** `go install github.com/hashicorp/copywrite@latest`
+2. Configure `core.hooksPath`:
+   * **Globally (for all repositories on your machine):**
+     ```bash
+     git config --global core.hooksPath <path-to-cloned-repo>/main
+     ```
+   * **Locally (for a single repository only):**
+     Run inside the target repository:
+     ```bash
+     git config core.hooksPath <path-to-cloned-repo>/main
+     ```
+   *(Only use `--global` if you want the hooks applied across all repositories.)*
+3. (Optional) Enable automatic CCDC copyright and licence header formatting as described below.
 
-> **Note:** If `copywrite` is not installed on your machine, native hooks will continue to run all other standard checks and display a gentle warning without failing your commit.
+## Configuring Licence Header Behavior
 
-## Configuring Copywrite Behavior
+Developers can customise the licence header hook using Git configuration (use `--global` for all repos, or omit it within a specific repo):
 
-Developers can customise the copywrite hook using Git configuration:
-
-* **Enable / Disable Copywrite:**
+* **Enable / Disable Header Formatting:**
   ```bash
-  git config --global hooks.copywrite true   # opt-in: enable copywrite integration
-  git config --global hooks.copywrite false  # default: disabled
+  git config --global hooks.licenceCheck true   # opt-in: enable licence header formatting
+  git config --global hooks.licenceCheck false  # default: disabled
   ```
 
 * **Set Mode (`fix` vs `check`):**
   ```bash
-  git config --global hooks.copywriteMode fix    # default: automatically inserts/updates headers on commit
-  git config --global hooks.copywriteMode check  # read-only check (warns/fails if headers are missing)
+  git config --global hooks.licenceCheckMode fix    # default: automatically inserts/updates headers on commit
+  git config --global hooks.licenceCheckMode check  # read-only check (warns/fails if headers are missing)
   ```
 
 ## Recommended settings
