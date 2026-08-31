@@ -60,18 +60,25 @@ A complete workflow template for CI is available in [templates/compliance.yml](t
 
 # Native Git Hooks
 
-To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers) globally for all repositories on your machine:
+To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file size, and automatic copyright headers):
 
 1. Clone this repository.
-2. Run:
-   ```bash
-   git config --global core.hooksPath <path-to-cloned-repo>/main
-   ```
+2. Configure `core.hooksPath`:
+   * **Globally (for all repositories on your machine):**
+     ```bash
+     git config --global core.hooksPath <path-to-cloned-repo>/main
+     ```
+   * **Locally (for a single repository only):**
+     Run inside the target repository:
+     ```bash
+     git config core.hooksPath <path-to-cloned-repo>/main
+     ```
+   *(Only use `--global` if you want the hooks applied across all repositories.)*
 3. (Optional) Enable automatic CCDC copyright and licence header formatting as described below.
 
 ## Configuring Licence Header Behavior
 
-Developers can customise the licence header hook using Git configuration:
+Developers can customise the licence header hook using Git configuration (use `--global` for all repos, or omit it within a specific repo):
 
 * **Enable / Disable Header Formatting:**
   ```bash

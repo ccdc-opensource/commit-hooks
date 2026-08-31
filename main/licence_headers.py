@@ -80,7 +80,17 @@ def _header_offset(filename, text, style):
     if not str(filename).lower().endswith('.py'):
         return len(lines[0]) if has_shebang else 0
 
-    candidate_indexes = [1] if has_shebang else range(min(2, len(lines)))
+    candidate_indexes = [1] if has_shebang else [0]
+    if (
+        not has_shebang
+        and len(lines) > 1
+        and (
+            lines[0].strip() == ''
+            or lines[0].lstrip().startswith('#')
+        )
+    ):
+        candidate_indexes.append(1)
+
     for index in candidate_indexes:
         if index < len(lines) and PYTHON_ENCODING_PATTERN.match(lines[index]):
             return sum(len(line) for line in lines[:index + 1])

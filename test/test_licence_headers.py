@@ -63,6 +63,14 @@ def test_second_line_python_encoding_declaration_preserves_comment_prefix():
     assert licence_headers.check_content('script.py', fixed, 2026) is None
 
 
+def test_second_line_encoding_after_code_is_not_treated_as_prefix():
+    source = 'print("x")\n# coding=utf-8\n'
+    fixed = licence_headers.fix_content('script.py', source, 2026)
+    header = licence_headers._render_header('hash', year=2026)
+    assert fixed.startswith(header)
+    assert fixed.endswith(source)
+
+
 def test_encoding_declaration_after_shebang_is_preserved():
     source = '#!/usr/bin/env python3\n# -*- coding: latin-1 -*-\nprint("ok")\n'
     fixed = licence_headers.fix_content('script.py', source, 2026)
