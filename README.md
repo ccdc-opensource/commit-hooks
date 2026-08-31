@@ -71,20 +71,18 @@ To enable CCDC commit checks (Jira ID, CRLF, line endings, DO NOT COMMIT, file s
 
 ## Configuring Licence Header Behavior
 
-Developers can customise the licence header hook using Git configuration. The
-existing `hooks.copywrite` names are retained for compatibility and do not
-require the Copywrite executable.
+Developers can customise the licence header hook using Git configuration:
 
 * **Enable / Disable Header Formatting:**
   ```bash
-  git config --global hooks.copywrite true   # opt-in: enable copywrite integration
-  git config --global hooks.copywrite false  # default: disabled
+  git config --global hooks.licenceCheck true   # opt-in: enable licence header formatting
+  git config --global hooks.licenceCheck false  # default: disabled
   ```
 
 * **Set Mode (`fix` vs `check`):**
   ```bash
-  git config --global hooks.copywriteMode fix    # default: automatically inserts/updates headers on commit
-  git config --global hooks.copywriteMode check  # read-only check (warns/fails if headers are missing)
+  git config --global hooks.licenceCheckMode fix    # default: automatically inserts/updates headers on commit
+  git config --global hooks.licenceCheckMode check  # read-only check (warns/fails if headers are missing)
   ```
 
 ## Recommended settings

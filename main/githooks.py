@@ -1033,28 +1033,26 @@ class TestCheckCommitMessage(unittest.TestCase):
         _test('Close but no cigar abc-1234', False)
 
 
-def run_copywrite(files):
+def run_licence_check(files):
     '''Check or fix complete CCDC licence headers.
 
     Configurable via git config:
-      - `git config --global hooks.copywrite true|false` (default: false, opt-in)
-      - `git config --global hooks.copywriteMode fix|check` (default: fix)
+      - `git config --global hooks.licenceCheck true|false` (default: false, opt-in)
+      - `git config --global hooks.licenceCheckMode fix|check` (default: fix)
         - fix: automatically adds/updates headers and restages files
         - check: checks header compliance and warns/fails without modifying
-
-    The existing hooks.copywrite setting is retained for compatibility.
     '''
     if not files:
         return 0
 
     # Opt-in: only run if explicitly enabled in git config
-    enabled_setting = get_config_setting('hooks.copywrite')
+    enabled_setting = get_config_setting('hooks.licenceCheck')
     if enabled_setting is None or enabled_setting.lower() not in ['true', '1', 'yes', 'on']:
         return 0
 
-    mode = (get_config_setting('hooks.copywriteMode') or 'fix').lower()
+    mode = (get_config_setting('hooks.licenceCheckMode') or 'fix').lower()
     if mode not in ['fix', 'check', 'plan', 'verify']:
-        _fail(f'Unsupported hooks.copywriteMode value: {mode}')
+        _fail(f'Unsupported hooks.licenceCheckMode value: {mode}')
         return 1
     is_check_mode = mode in ['check', 'plan', 'verify']
 
@@ -1067,8 +1065,8 @@ def run_copywrite(files):
                 text=True
             )
             if unstaged.returncode == 1:
-                _fail('Copywrite fix mode cannot run with unstaged changes in staged files. '
-                      'Stage or stash those changes, or use hooks.copywriteMode check.')
+                _fail('Licence check fix mode cannot run with unstaged changes in staged files. '
+                      'Stage or stash those changes, or use hooks.licenceCheckMode check.')
                 return 1
             if unstaged.returncode != 0:
                 _fail(f'Unable to inspect unstaged changes:\n{unstaged.stderr.strip()}')
@@ -1095,15 +1093,15 @@ def run_copywrite(files):
     return 0
 
 
-class TestRunCopywrite(unittest.TestCase):
+class TestRunLicenceCheck(unittest.TestCase):
     @patch('githooks.get_config_setting', return_value=None)
     def test_disabled(self, _config):
-        self.assertEqual(0, run_copywrite(['example.py']))
+        self.assertEqual(0, run_licence_check(['example.py']))
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
     @patch('githooks.licence_headers.process_files', return_value=1)
     def test_check_failure_blocks_commit(self, process_files, _config):
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
         process_files.assert_called_once_with(['example.py'], fix=False)
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
@@ -1114,7 +1112,7 @@ class TestRunCopywrite(unittest.TestCase):
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 0, '', ''),
         ]
-        self.assertEqual(0, run_copywrite(['example.py']))
+        self.assertEqual(0, run_licence_check(['example.py']))
         process_files.assert_called_once_with(['example.py'], fix=True)
         self.assertEqual(['git', 'add', '--', 'example.py'], run.call_args_list[-1].args[0])
 
@@ -1126,19 +1124,19 @@ class TestRunCopywrite(unittest.TestCase):
             subprocess.CompletedProcess([], 0, '', ''),
             subprocess.CompletedProcess([], 1, '', 'cannot add'),
         ]
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
 
     @patch('githooks.get_config_setting', side_effect=['true', 'fix'])
     @patch('githooks.subprocess.run')
     def test_fix_rejects_partially_staged_files(self, run, _config):
         run.return_value = subprocess.CompletedProcess([], 1, '', '')
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
         run.assert_called_once()
 
     @patch('githooks.get_config_setting', side_effect=['true', 'check'])
     @patch('githooks.licence_headers.process_files', side_effect=OSError('cannot read'))
     def test_processing_error_blocks_commit(self, _process_files, _config):
-        self.assertEqual(1, run_copywrite(['example.py']))
+        self.assertEqual(1, run_licence_check(['example.py']))
 
 
 def commit_hook(merge=False):
@@ -1156,7 +1154,7 @@ def commit_hook(merge=False):
         staged_files = files['M'] + files['A']
 
         print(' Check and update copyright headers ...')
-        retval += run_copywrite(staged_files)
+        retval += run_licence_check(staged_files)
 
         print(' Check filenames ...')
         retval += check_filenames(staged_files)
