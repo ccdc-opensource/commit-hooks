@@ -92,6 +92,19 @@ Developers can customise the licence header hook using Git configuration (use `-
   git config --global hooks.licenceCheckMode check  # read-only check (warns/fails if headers are missing)
   ```
 
+### Supported and Excluded Files
+
+When licence header validation/formatting is enabled, files are filtered using the following rules:
+
+* **Included File Extensions:**
+  * **Hash style comments (`#`):** `.py`, `.sh`, `.bash`, `.yaml`, `.yml`
+  * **Slash style comments (`//`):** `.js`, `.ts`, `.cs`, `.cpp`, `.cxx`, `.cc`, `.h`, `.hpp`
+* **Ignored Directories:**
+  * `.git`, `.github`, `test`, `tests`, `templates`, `bin`, `obj`, `packages`, `node_modules`, `dist`, `build`, `.venv`, `venv`, `__pycache__`
+* **Ignored Suffixes & Generated Files:**
+  * Suffixes: `.designer.cs`, `.g.cs`, `.min.js`, `.lock`
+  * Any file containing `.generated.` in its name
+
 ## Recommended settings
 ### To ensure the line endings are correctly converted:
 1. On Windows: `git config --global core.autocrlf true`
