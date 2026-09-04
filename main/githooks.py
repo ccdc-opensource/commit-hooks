@@ -22,7 +22,7 @@ Module for a git hook.
 from collections import defaultdict
 from io import StringIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from unittest.mock import patch
 import json
 import os
@@ -32,7 +32,6 @@ import subprocess
 import sys
 import time
 import unittest
-import urllib.error
 import urllib.request
 
 try:
@@ -1213,6 +1212,15 @@ def _get_hooks_repo_dir():
     return Path(__file__).resolve().parent.parent
 
 
+def _get_update_cache_file():
+    '''Return path to the update check cache file, preferring .git directory if present.'''
+    repo_dir = _get_hooks_repo_dir()
+    git_dir = repo_dir / '.git'
+    if git_dir.is_dir():
+        return git_dir / 'ccdc_hooks_update_cache.json'
+    return repo_dir / '.update_cache.json'
+
+
 def _get_local_version():
     '''Get current version/tag or commit SHA of the local hooks repository.'''
     repo_dir = _get_hooks_repo_dir()
@@ -1269,7 +1277,7 @@ def check_for_updates():
 
     try:
         repo_dir = _get_hooks_repo_dir()
-        cache_file = repo_dir / '.update_cache.json'
+        cache_file = _get_update_cache_file()
         now = time.time()
 
         cached_data = {}
@@ -1327,6 +1335,15 @@ class TestUpdateCheck(unittest.TestCase):
         self.assertEqual((), _parse_version_tuple(''))
         self.assertEqual((), _parse_version_tuple(None))
 
+    def test_update_cache_file_prefers_git_dir(self):
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
+                self.assertEqual(temp_path / '.update_cache.json', _get_update_cache_file())
+                git_dir = temp_path / '.git'
+                git_dir.mkdir()
+                self.assertEqual(git_dir / 'ccdc_hooks_update_cache.json', _get_update_cache_file())
+
     @patch('githooks._is_github_event', return_value=True)
     def test_skipped_on_github_event(self, _mock_event):
         with patch('sys.stdout', new=StringIO()) as tmp_stdout:
@@ -1345,10 +1362,8 @@ class TestUpdateCheck(unittest.TestCase):
     @patch('githooks._get_local_version', return_value='v7.3')
     @patch('githooks._fetch_latest_remote_version', return_value='v8.1')
     def test_prints_warning_when_outdated(self, _fetch, _local, _config, _event):
-        temp_dir = NamedTemporaryFile().name
-        temp_path = Path(temp_dir)
-        temp_path.mkdir(parents=True, exist_ok=True)
-        try:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
             with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
                 with patch('sys.stdout', new=StringIO()) as tmp_stdout:
                     check_for_updates()
@@ -1360,28 +1375,18 @@ class TestUpdateCheck(unittest.TestCase):
                     _fetch.reset_mock()
                     check_for_updates()
                     _fetch.assert_not_called()
-        finally:
-            if (temp_path / '.update_cache.json').exists():
-                (temp_path / '.update_cache.json').unlink()
-            temp_path.rmdir()
 
     @patch('githooks._is_github_event', return_value=False)
     @patch('githooks.get_config_setting', return_value=None)
     @patch('githooks._get_local_version', return_value='v8.1')
     @patch('githooks._fetch_latest_remote_version', return_value='v8.1')
     def test_no_warning_when_up_to_date(self, _fetch, _local, _config, _event):
-        temp_dir = NamedTemporaryFile().name
-        temp_path = Path(temp_dir)
-        temp_path.mkdir(parents=True, exist_ok=True)
-        try:
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
             with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
                 with patch('sys.stdout', new=StringIO()) as tmp_stdout:
                     check_for_updates()
                     self.assertEqual('', tmp_stdout.getvalue())
-        finally:
-            if (temp_path / '.update_cache.json').exists():
-                (temp_path / '.update_cache.json').unlink()
-            temp_path.rmdir()
 
 
 def commit_hook(merge=False):
