@@ -24,12 +24,16 @@ from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import patch
+import json
 import os
 import platform
 import re
 import subprocess
-import unittest
 import sys
+import time
+import unittest
+import urllib.error
+import urllib.request
 
 try:
     import licence_headers
@@ -80,6 +84,10 @@ CHECKED_EXTS = [
         ]
 # File types that need a terminating newline
 TERMINATING_NEWLINE_EXTS = ['.c', '.cpp', '.h', '.inl']
+# Update check TTL in seconds (24 hours)
+UPDATE_CACHE_TTL_SECONDS = 86400
+# GitHub API URL for the latest release of commit-hooks
+GITHUB_LATEST_RELEASE_URL = 'https://api.github.com/repos/ccdc-opensource/commit-hooks/releases/latest'
 
 def _get_output(command_list, cwd='.'):
     return subprocess.check_output(command_list, cwd=cwd).decode(errors='replace')
@@ -1200,7 +1208,184 @@ class TestRunLicenceCheck(unittest.TestCase):
         self.assertEqual(1, run_licence_check(['example.py']))
 
 
+def _get_hooks_repo_dir():
+    '''Return the root directory of the commit-hooks repository.'''
+    return Path(__file__).resolve().parent.parent
+
+
+def _get_local_version():
+    '''Get current version/tag or commit SHA of the local hooks repository.'''
+    repo_dir = _get_hooks_repo_dir()
+    try:
+        return _get_output(
+            ['git', '-C', str(repo_dir), 'describe', '--tags', '--always']
+        ).strip()
+    except Exception:
+        return None
+
+
+def _fetch_latest_remote_version():
+    '''Fetch the latest release tag from GitHub API with a short timeout.'''
+    req = urllib.request.Request(
+        GITHUB_LATEST_RELEASE_URL,
+        headers={
+            'User-Agent': 'ccdc-commit-hooks',
+            'Accept': 'application/vnd.github.v3+json',
+        }
+    )
+    with urllib.request.urlopen(req, timeout=1.5) as response:
+        if response.status == 200:
+            data = json.loads(response.read().decode('utf-8'))
+            return data.get('tag_name')
+    return None
+
+
+def _parse_version_tuple(version_str):
+    '''Parse a version string like "v8.1" or "8.1.2" into a tuple of ints.'''
+    if not version_str:
+        return ()
+    clean = version_str.lstrip('v').split('-')[0].split('+')[0]
+    parts = []
+    for segment in clean.split('.'):
+        if segment.isdigit():
+            parts.append(int(segment))
+        else:
+            break
+    return tuple(parts)
+
+
+def check_for_updates():
+    '''Check if an update is available and display a subtle notification if outdated.
+
+    This check is completely non-blocking, cached for 24 hours, and fails silently
+    if network/API access is unavailable.
+    '''
+    if _is_github_event():
+        return
+
+    check_setting = get_config_setting('hooks.checkUpdates')
+    if check_setting is not None and check_setting.lower() in ['false', '0', 'no', 'off']:
+        return
+
+    try:
+        repo_dir = _get_hooks_repo_dir()
+        cache_file = repo_dir / '.update_cache.json'
+        now = time.time()
+
+        cached_data = {}
+        if cache_file.exists():
+            try:
+                cached_data = json.loads(cache_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+
+        last_checked = cached_data.get('last_checked', 0)
+        latest_tag = cached_data.get('latest_tag')
+
+        if now - last_checked > UPDATE_CACHE_TTL_SECONDS or not latest_tag:
+            latest_tag = _fetch_latest_remote_version()
+            cached_data = {
+                'last_checked': now,
+                'latest_tag': latest_tag
+            }
+            try:
+                cache_file.write_text(json.dumps(cached_data), encoding='utf-8')
+            except Exception:
+                pass
+
+        if not latest_tag:
+            return
+
+        local_version = _get_local_version()
+        if not local_version:
+            return
+
+        local_tuple = _parse_version_tuple(local_version)
+        remote_tuple = _parse_version_tuple(latest_tag)
+
+        if local_tuple and remote_tuple:
+            is_outdated = local_tuple < remote_tuple
+        else:
+            clean_local = local_version.lstrip('v')
+            clean_remote = latest_tag.lstrip('v')
+            is_outdated = clean_local != clean_remote and not clean_local.startswith(clean_remote)
+
+        if is_outdated:
+            print(f'\n'
+                  f' [INFO] A newer version of CCDC commit-hooks is available: {latest_tag} (current: {local_version})\n'
+                  f'        To update, run: git -C "{repo_dir}" pull\n')
+    except Exception:
+        # Failsafe: never break the commit hook
+        pass
+
+
+class TestUpdateCheck(unittest.TestCase):
+    def test_parse_version_tuple(self):
+        self.assertEqual((8, 1), _parse_version_tuple('v8.1'))
+        self.assertEqual((8, 1, 2), _parse_version_tuple('8.1.2'))
+        self.assertEqual((7, 3), _parse_version_tuple('v7.3-4-g1234abc'))
+        self.assertEqual((), _parse_version_tuple(''))
+        self.assertEqual((), _parse_version_tuple(None))
+
+    @patch('githooks._is_github_event', return_value=True)
+    def test_skipped_on_github_event(self, _mock_event):
+        with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+            check_for_updates()
+            self.assertEqual('', tmp_stdout.getvalue())
+
+    @patch('githooks._is_github_event', return_value=False)
+    @patch('githooks.get_config_setting', return_value='false')
+    def test_opted_out_via_config(self, _mock_config, _mock_event):
+        with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+            check_for_updates()
+            self.assertEqual('', tmp_stdout.getvalue())
+
+    @patch('githooks._is_github_event', return_value=False)
+    @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks._get_local_version', return_value='v7.3')
+    @patch('githooks._fetch_latest_remote_version', return_value='v8.1')
+    def test_prints_warning_when_outdated(self, _fetch, _local, _config, _event):
+        temp_dir = NamedTemporaryFile().name
+        temp_path = Path(temp_dir)
+        temp_path.mkdir(parents=True, exist_ok=True)
+        try:
+            with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
+                with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+                    check_for_updates()
+                    output = tmp_stdout.getvalue()
+                    self.assertIn('A newer version of CCDC commit-hooks is available: v8.1 (current: v7.3)', output)
+                    self.assertIn('git -C', output)
+
+                    # Second run within TTL uses cache without calling fetch again
+                    _fetch.reset_mock()
+                    check_for_updates()
+                    _fetch.assert_not_called()
+        finally:
+            if (temp_path / '.update_cache.json').exists():
+                (temp_path / '.update_cache.json').unlink()
+            temp_path.rmdir()
+
+    @patch('githooks._is_github_event', return_value=False)
+    @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks._get_local_version', return_value='v8.1')
+    @patch('githooks._fetch_latest_remote_version', return_value='v8.1')
+    def test_no_warning_when_up_to_date(self, _fetch, _local, _config, _event):
+        temp_dir = NamedTemporaryFile().name
+        temp_path = Path(temp_dir)
+        temp_path.mkdir(parents=True, exist_ok=True)
+        try:
+            with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
+                with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+                    check_for_updates()
+                    self.assertEqual('', tmp_stdout.getvalue())
+        finally:
+            if (temp_path / '.update_cache.json').exists():
+                (temp_path / '.update_cache.json').unlink()
+            temp_path.rmdir()
+
+
 def commit_hook(merge=False):
+    check_for_updates()
     retval = 0
     files = get_commit_files()
 
