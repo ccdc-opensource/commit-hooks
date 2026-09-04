@@ -1213,11 +1213,17 @@ def _get_hooks_repo_dir():
 
 
 def _get_update_cache_file():
-    '''Return path to the update check cache file, preferring .git directory if present.'''
+    '''Return path to the update check cache file in the hooks repo's git directory.'''
     repo_dir = _get_hooks_repo_dir()
-    git_dir = repo_dir / '.git'
-    if git_dir.is_dir():
-        return git_dir / 'ccdc_hooks_update_cache.json'
+    try:
+        git_dir_raw = _get_output(['git', '-C', str(repo_dir), 'rev-parse', '--git-dir']).strip()
+        git_dir = Path(git_dir_raw)
+        if not git_dir.is_absolute():
+            git_dir = (repo_dir / git_dir).resolve()
+        if git_dir.is_dir():
+            return git_dir / 'ccdc_hooks_update_cache.json'
+    except Exception:
+        pass
     return repo_dir / '.update_cache.json'
 
 
@@ -1290,7 +1296,7 @@ def check_for_updates():
         last_checked = cached_data.get('last_checked', 0)
         latest_tag = cached_data.get('latest_tag')
 
-        if now - last_checked > UPDATE_CACHE_TTL_SECONDS or not latest_tag:
+        if now - last_checked > UPDATE_CACHE_TTL_SECONDS:
             latest_tag = _fetch_latest_remote_version()
             cached_data = {
                 'last_checked': now,
@@ -1335,14 +1341,21 @@ class TestUpdateCheck(unittest.TestCase):
         self.assertEqual((), _parse_version_tuple(''))
         self.assertEqual((), _parse_version_tuple(None))
 
-    def test_update_cache_file_prefers_git_dir(self):
+    def test_update_cache_file_locates_git_dir(self):
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            git_dir = temp_path / 'real_git_dir'
+            git_dir.mkdir()
+            with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
+                with patch('githooks._get_output', return_value=str(git_dir)):
+                    self.assertEqual(git_dir / 'ccdc_hooks_update_cache.json', _get_update_cache_file())
+
+    def test_update_cache_file_fallback_when_git_fails(self):
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
-                self.assertEqual(temp_path / '.update_cache.json', _get_update_cache_file())
-                git_dir = temp_path / '.git'
-                git_dir.mkdir()
-                self.assertEqual(git_dir / 'ccdc_hooks_update_cache.json', _get_update_cache_file())
+                with patch('githooks._get_output', side_effect=subprocess.CalledProcessError(1, 'git')):
+                    self.assertEqual(temp_path / '.update_cache.json', _get_update_cache_file())
 
     @patch('githooks._is_github_event', return_value=True)
     def test_skipped_on_github_event(self, _mock_event):
@@ -1372,6 +1385,24 @@ class TestUpdateCheck(unittest.TestCase):
                     self.assertIn('git -C', output)
 
                     # Second run within TTL uses cache without calling fetch again
+                    _fetch.reset_mock()
+                    check_for_updates()
+                    _fetch.assert_not_called()
+
+    @patch('githooks._is_github_event', return_value=False)
+    @patch('githooks.get_config_setting', return_value=None)
+    @patch('githooks._get_local_version', return_value='v7.3')
+    @patch('githooks._fetch_latest_remote_version', return_value=None)
+    def test_respects_ttl_even_on_failed_fetch(self, _fetch, _local, _config, _event):
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            with patch('githooks._get_hooks_repo_dir', return_value=temp_path):
+                with patch('sys.stdout', new=StringIO()) as tmp_stdout:
+                    check_for_updates()
+                    self.assertEqual('', tmp_stdout.getvalue())
+                    self.assertEqual(1, _fetch.call_count)
+
+                    # Second run within TTL respects cache and does not attempt network call
                     _fetch.reset_mock()
                     check_for_updates()
                     _fetch.assert_not_called()
