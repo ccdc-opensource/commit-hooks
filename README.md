@@ -92,6 +92,22 @@ Developers can customise the licence header hook using Git configuration (use `-
   git config --global hooks.licenceCheckMode check  # read-only check (warns/fails if headers are missing)
   ```
 
+## Automatic Update Notifications
+
+The native commit hooks periodically check (at most once every 24 hours) if a newer release of `commit-hooks` is available on GitHub.
+
+If a new version is detected, a non-blocking informational notice will be displayed in the terminal during commit:
+```text
+ [INFO] A newer version of CCDC commit-hooks is available: v8.1 (current: v7.3)
+        To update, run: git -C "<path-to-cloned-repo>" pull
+```
+
+* This check is completely non-blocking and will never fail or interrupt a commit.
+* You can disable update notifications via Git configuration if desired:
+  ```bash
+  git config --global hooks.checkUpdates false
+  ```
+
 ### Supported and Excluded Files
 
 When licence header validation/formatting is enabled, files are filtered using the following rules:
