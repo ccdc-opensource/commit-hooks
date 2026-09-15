@@ -25,7 +25,16 @@ Conventional Commits validation is optional. Add a `.conventional-commits` file
 at the repository root to enable it. The supported header format is:
 
 ```text
+<type>: <subject>
 <type>(<scope>): <subject>
+```
+
+Examples:
+
+```text
+fix: handle an empty search response
+feat(PLA-0001): add structure filtering
+break(NO_JIRA): remove the legacy search endpoint
 ```
 
 Supported types are `break`, `feat`, `fix`, `refactor`, `build`, `chore`, `ci`,
