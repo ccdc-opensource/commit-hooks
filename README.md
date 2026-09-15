@@ -19,6 +19,21 @@ The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
 size of new or modified files exceeds a threshold.
 
+## Conventional Commits
+
+Conventional Commits validation is optional. Add a `.conventional-commits` file
+at the repository root to enable it. The supported header format is:
+
+```text
+<type>(<JIRA-ID>): <subject>
+```
+
+Supported types are `break`, `feat`, `fix`, `refactor`, `build`, `chore`, `ci`,
+`docs`, `perf`, `revert`, `style`, and `test`. CCDC release configurations use
+`break` for a major version. A branch may contain more than one type.
+Releases should choose the highest required version bump,
+so `break` takes precedence over `feat`, which takes precedence over `fix`.
+
 
 # GitHub Actions
 
