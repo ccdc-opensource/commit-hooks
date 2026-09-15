@@ -25,7 +25,7 @@ Conventional Commits validation is optional. Add a `.conventional-commits` file
 at the repository root to enable it. The supported header format is:
 
 ```text
-<type>(<JIRA-ID>): <subject>
+<type>(<scope>): <subject>
 ```
 
 Supported types are `break`, `feat`, `fix`, `refactor`, `build`, `chore`, `ci`,
