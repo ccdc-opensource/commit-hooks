@@ -35,13 +35,25 @@ Examples:
 fix: handle an empty search response
 feat(PLA-0001): add structure filtering
 break(NO_JIRA): remove the legacy search endpoint
+BREAKING CHANGE(api): drop support for legacy endpoints
 ```
 
-Supported types are `break`, `feat`, `fix`, `refactor`, `build`, `chore`, `ci`,
-`docs`, `perf`, `revert`, `style`, and `test`. CCDC release configurations use
-`break` for a major version. A branch may contain more than one type.
-Releases should choose the highest required version bump,
-so `break` takes precedence over `feat`, which takes precedence over `fix`.
+Or with breaking changes described in the footer:
+
+```text
+feat(api): migrate to v2 response schema
+
+BREAKING CHANGE: remove statusCode field from responses
+```
+
+Supported types are `feat`, `fix`, `refactor`, `build`, `chore`, `ci`, `docs`,
+`perf`, `revert`, `style`, and `test`. For major (breaking) releases, both the
+standard `BREAKING CHANGE` (in header or footer) and CCDC's shorthand `break`
+(configured via `release.config.cjs`) are accepted. Optional scopes like
+`feat(<scope>):` and `break(<scope>):` are supported.
+A branch may contain more than one type. Releases should choose the highest
+required version bump, so `break` / `BREAKING CHANGE` takes precedence over
+`feat`, which takes precedence over `fix`.
 
 
 # GitHub Actions

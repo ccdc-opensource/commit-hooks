@@ -1009,11 +1009,14 @@ def _conventional_commits_enabled():
 
 
 def conventional_commit_present(message):
-    '''Return True if the commit message follows the Angular Conventional Commits standard.'''
-    # Angular Conventional Commits header: type(scope?): subject
-    # Allowed types from @commitlint/config-angular:
-    #   build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test
-    # Note: Angular does not use the `!` breaking-change marker in the header;
+    '''Return True if the commit message follows Conventional Commits / Angular standard.
+
+    Supported types:
+      - Standard types: feat, fix, refactor, build, chore, ci, docs, perf, revert, style, test
+      - Breaking changes: 'BREAKING CHANGE' (standard) and 'break' (CCDC custom shorthand in release.config.cjs)
+      - Both support an optional (scope) and breaking changes can also appear in the footer.
+      - Note: Angular commit guidelines do not use the '!' breaking-change marker in the header.
+    '''
     pattern = re.compile(
         r'^(BREAKING CHANGE|break|feat|fix|refactor|build|chore|ci|docs|perf|revert|style|test)'  # type
         r'(\([\w\-\.\/]+\))?'  # optional scope
@@ -1077,14 +1080,19 @@ class TestCheckCommitMessage(unittest.TestCase):
 class TestConventionalCommitPresent(unittest.TestCase):
     def test_supported_types(self):
         for commit_type in (
-            'break', 'feat', 'fix', 'refactor', 'build', 'chore', 'ci',
-            'docs', 'perf', 'revert', 'style', 'test'
+            'BREAKING CHANGE', 'break', 'feat', 'fix', 'refactor', 'build',
+            'chore', 'ci', 'docs', 'perf', 'revert', 'style', 'test'
         ):
             with self.subTest(commit_type=commit_type):
                 self.assertTrue(conventional_commit_present(f'{commit_type}: subject'))
 
     def test_scope_and_multiline_description(self):
         self.assertTrue(conventional_commit_present('feat(api): subject\n\nMore detail'))
+        self.assertTrue(conventional_commit_present('break(api): subject\n\nMore detail'))
+        self.assertTrue(conventional_commit_present('BREAKING CHANGE(api): subject\n\nMore detail'))
+        self.assertTrue(conventional_commit_present(
+            'feat(contracts): update api endpoints\n\nBREAKING CHANGE: remove statusCode field from responses'
+        ))
 
     def test_unsupported_type(self):
         self.assertFalse(conventional_commit_present('invalid(PLA-3474): test'))
