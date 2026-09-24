@@ -19,6 +19,42 @@ The commit will also be flagged if the commit message does not include a Jira
 ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
 size of new or modified files exceeds a threshold.
 
+## Conventional Commits
+
+Conventional Commits validation is optional. Add a `.conventional-commits` file
+at the repository root to enable it. The supported header format is:
+
+```text
+<type>: <subject>
+<type>(<scope>): <subject>
+```
+
+Examples:
+
+```text
+fix: handle an empty search response
+feat(PLA-0001): add structure filtering
+break(NO_JIRA): remove the legacy search endpoint
+BREAKING CHANGE(api): drop support for legacy endpoints
+```
+
+Or with breaking changes described in the footer:
+
+```text
+feat(api): migrate to v2 response schema
+
+BREAKING CHANGE: remove statusCode field from responses
+```
+
+Supported types are `feat`, `fix`, `refactor`, `build`, `chore`, `ci`, `docs`,
+`perf`, `revert`, `style`, and `test`. For major (breaking) releases, both the
+standard `BREAKING CHANGE` (in header or footer) and CCDC's shorthand `break`
+(configured via `release.config.cjs`) are accepted. Optional scopes like
+`feat(<scope>):` and `break(<scope>):` are supported.
+A branch may contain more than one type. Releases should choose the highest
+required version bump, so `break` / `BREAKING CHANGE` takes precedence over
+`feat`, which takes precedence over `fix`.
+
 
 # GitHub Actions
 
