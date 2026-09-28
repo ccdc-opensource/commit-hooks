@@ -16,8 +16,8 @@ The commit will be flagged if it includes certain text files with:
 * Missing or non-compliant CCDC copyright and licence headers (when header validation is enabled)
 
 The commit will also be flagged if the commit message does not include a Jira
-ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if the
-size of new or modified files exceeds a threshold.
+ID (unless marked with NO_JIRA or a Copilot Autofix co-author line), or if new
+or modified files exceed size limits (files over 5MB require a `LARGE_FILES` marker).
 
 ## Conventional Commits
 
@@ -54,6 +54,26 @@ standard `BREAKING CHANGE` (in header or footer) and CCDC's shorthand `break`
 A branch may contain more than one type. Releases should choose the highest
 required version bump, so `break` / `BREAKING CHANGE` takes precedence over
 `feat`, which takes precedence over `fix`.
+
+## Large Files
+
+Commits are subject to file size limits:
+
+* **Soft limit (> 5MB):** Any new or modified file larger than 5MB will fail validation unless the commit message includes the `LARGE_FILES` marker (along with a Jira issue ID or `NO_JIRA`).
+* **Hard limit (> 99MB):** Any file larger than 99MB is unconditionally rejected to stay within GitHub's 100MB limit. This cannot be bypassed.
+
+### Pull Requests and Subsequent Commits
+
+When running in CI (GitHub Actions), the compliance check validates all changed files across the entire pull request against the **latest (HEAD) commit message**.
+
+Because of this:
+* Once a file over 5MB is present on a branch, the `LARGE_FILES` marker must be included in **every subsequent commit** on that branch for the CI check to pass.
+* If a commit was made without the marker, or for the final commit before pushing/merging, you can satisfy the check by adding an empty commit with the marker:
+
+```bash
+git commit --allow-empty -m "LARGE_FILES (CSD-0001)"
+git push
+```
 
 
 # GitHub Actions
