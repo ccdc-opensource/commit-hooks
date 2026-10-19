@@ -29,6 +29,23 @@ def test_header_inside_leading_region_wrapper_passes_without_duplication():
     assert fixed == content
 
 
+def test_regional_keyword_is_not_treated_as_region_directive():
+    header = licence_headers._render_header('hash', year=2026)
+    content = '#regional\n' + header + 'print("ok")\n'
+    assert licence_headers.check_content('example.py', content, 2026) is not None
+    fixed = licence_headers.fix_content('example.py', content, 2026)
+    assert fixed.startswith(header)
+
+
+def test_wrapped_header_is_repaired_in_place_without_double_insert():
+    header = licence_headers._render_header('hash', year=2026)
+    broken = header.replace('# copied, except in accordance with a valid licence agreement with CCDC and\n', '')
+    content = '#region Licence\n' + broken + '#endregion\nprint("ok")\n'
+    fixed = licence_headers.fix_content('example.py', content, 2026)
+    assert fixed == '#region Licence\n' + header + '#endregion\nprint("ok")\n'
+    assert licence_headers.check_content('example.py', fixed, 2026) is None
+
+
 def test_literal_year_token_fails():
     header = licence_headers._render_header('hash', year=2026).replace('2026', '{{ .Year }}')
     assert licence_headers.check_content('example.py', header, 2026) is not None

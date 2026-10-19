@@ -109,25 +109,41 @@ def _header_line_matches(actual, expected):
     return actual == expected
 
 
-def _strip_leading_region_wrapper(text):
-    lines = text.splitlines()
+def _is_region_directive(line):
+    return bool(re.match(r'^#region(?:\s|$)', line.strip()))
+
+
+def _is_end_region_directive(line):
+    return bool(re.match(r'^#endregion(?:\s|$)', line.strip()))
+
+
+def _find_leading_region_block(lines):
     for idx, line in enumerate(lines):
         stripped = line.strip()
         if not stripped:
             continue
-        if not stripped.startswith('#region'):
-            return lines
+        if not _is_region_directive(stripped):
+            return None
         depth = 0
         for region_idx in range(idx, len(lines)):
             region_line = lines[region_idx].strip()
-            if region_line.startswith('#region'):
+            if _is_region_directive(region_line):
                 depth += 1
-            elif region_line.startswith('#endregion'):
+            elif _is_end_region_directive(region_line):
                 depth -= 1
                 if depth == 0:
-                    return lines[idx + 1:region_idx]
-        return lines[idx + 1:]
-    return lines
+                    return idx, region_idx
+        return None
+    return None
+
+
+def _strip_leading_region_wrapper(text):
+    lines = text.splitlines()
+    region_block = _find_leading_region_block(lines)
+    if region_block is None:
+        return lines
+    idx, region_end = region_block
+    return lines[idx + 1:region_end]
 
 
 def _known_header_prefix_end(text, offset, expected):
@@ -208,6 +224,8 @@ def _damaged_full_header_end(text, offset, style):
 
 def _existing_header_end(text, offset, style, expected):
     lines = text[offset:].splitlines(keepends=True)
+    if lines and _is_region_directive(lines[0].strip()):
+        return offset
     if lines and LEGACY_HEADER_PATTERN.match(lines[0]):
         if len(lines) > 1 and lines[1].strip() == '':
             return offset + len(lines[0]) + len(lines[1])
@@ -265,6 +283,18 @@ def fix_content(filename, data, year=None):
     expected = _render_header(style, newline, year)
     if _has_valid_header(text, offset, expected):
         return data
+
+    lines = text.splitlines(keepends=True)
+    region_block = _find_leading_region_block(lines)
+    if region_block is not None:
+        region_start, region_end = region_block
+        inner = ''.join(lines[region_start + 1:region_end])
+        if _has_valid_header(inner, 0, expected):
+            return data
+        header_end = _existing_header_end(inner, 0, style, expected)
+        fixed_inner = expected + inner[header_end:]
+        fixed = ''.join(lines[:region_start + 1]) + fixed_inner + ''.join(lines[region_end:])
+        return fixed.encode(encoding) if encoding else fixed
 
     header_end = _existing_header_end(text, offset, style, expected)
     prefix = text[:offset]
