@@ -21,6 +21,14 @@ def test_existing_file_with_earlier_year_passes_and_is_not_modified():
     assert 'Copyright (C) 2020' in fixed
 
 
+def test_header_inside_leading_region_wrapper_passes_without_duplication():
+    header = licence_headers._render_header('hash', year=2026)
+    content = '#region Licence\n' + header + '#endregion\nprint("ok")\n'
+    assert licence_headers.check_content('example.py', content, 2026) is None
+    fixed = licence_headers.fix_content('example.py', content, 2026)
+    assert fixed == content
+
+
 def test_literal_year_token_fails():
     header = licence_headers._render_header('hash', year=2026).replace('2026', '{{ .Year }}')
     assert licence_headers.check_content('example.py', header, 2026) is not None

@@ -109,6 +109,27 @@ def _header_line_matches(actual, expected):
     return actual == expected
 
 
+def _strip_leading_region_wrapper(text):
+    lines = text.splitlines()
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith('#region'):
+            return lines
+        depth = 0
+        for region_idx in range(idx, len(lines)):
+            region_line = lines[region_idx].strip()
+            if region_line.startswith('#region'):
+                depth += 1
+            elif region_line.startswith('#endregion'):
+                depth -= 1
+                if depth == 0:
+                    return lines[idx + 1:region_idx]
+        return lines[idx + 1:]
+    return lines
+
+
 def _known_header_prefix_end(text, offset, expected):
     actual_lines = []
     position = offset
@@ -201,7 +222,10 @@ def _has_valid_header(text, offset, expected):
     '''Check if text starting at offset contains a valid compliant header (accepting any valid year).'''
     if text.startswith(expected, offset):
         return True
-    actual_lines = [line.strip() for line in text[offset:].splitlines()]
+
+    body_lines = text[offset:].splitlines()
+    stripped_body = _strip_leading_region_wrapper('\n'.join(body_lines))
+    actual_lines = [line.strip() for line in stripped_body]
     expected_lines = [line.strip() for line in expected.splitlines()]
     if len(actual_lines) < len(expected_lines):
         return False
