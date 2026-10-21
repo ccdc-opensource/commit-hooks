@@ -109,24 +109,28 @@ def _header_line_matches(actual, expected):
     return actual == expected
 
 
+def _strip_bom(line):
+    return line.lstrip('\ufeff')
+
+
 def _is_region_directive(line):
-    return bool(re.match(r'^#region(?:\s|$)', line.strip()))
+    return bool(re.match(r'^#region(?:\s|$)', _strip_bom(line).strip()))
 
 
 def _is_end_region_directive(line):
-    return bool(re.match(r'^#endregion(?:\s|$)', line.strip()))
+    return bool(re.match(r'^#endregion(?:\s|$)', _strip_bom(line).strip()))
 
 
 def _find_leading_region_block(lines):
     for idx, line in enumerate(lines):
-        stripped = line.strip()
+        stripped = _strip_bom(line).strip()
         if not stripped:
             continue
         if not _is_region_directive(stripped):
             return None
         depth = 0
         for region_idx in range(idx, len(lines)):
-            region_line = lines[region_idx].strip()
+            region_line = _strip_bom(lines[region_idx]).strip()
             if _is_region_directive(region_line):
                 depth += 1
             elif _is_end_region_directive(region_line):

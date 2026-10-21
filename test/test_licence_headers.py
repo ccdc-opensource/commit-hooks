@@ -29,6 +29,14 @@ def test_header_inside_leading_region_wrapper_passes_without_duplication():
     assert fixed == content
 
 
+def test_bom_before_leading_region_wrapper_is_ignored():
+    header = licence_headers._render_header('slash', year=2026)
+    content = '\ufeff#region Licence\n' + header + '#endregion\nprint("ok")\n'
+    assert licence_headers.check_content('example.cs', content, 2026) is None
+    fixed = licence_headers.fix_content('example.cs', content, 2026)
+    assert fixed == content
+
+
 def test_regional_keyword_is_not_treated_as_region_directive():
     header = licence_headers._render_header('hash', year=2026)
     content = '#regional\n' + header + 'print("ok")\n'
