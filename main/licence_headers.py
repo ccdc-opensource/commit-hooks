@@ -21,6 +21,7 @@ import codecs
 from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 import re
@@ -37,6 +38,7 @@ IGNORED_DIRECTORIES = {
 IGNORED_SUFFIXES = ('.designer.cs', '.g.cs', '.min.js', '.lock')
 TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / 'headers'
 PYTHON_ENCODING_PATTERN = re.compile(r'^[ \t\f]*#.*?coding[:=][ \t]*[-\w.]+')
+PYTHON_BLANK_OR_COMMENT_PATTERN = re.compile(r'^[ \t\f]*(?:[#\r\n]|$)')
 LEGACY_HEADER_PATTERN = re.compile(
     r'^(#|//) Copyright The Cambridge Crystallographic Data Centre '
     r'\(CCDC\) \d{4}(?:, \d{4})?\r?\n?$'
@@ -47,6 +49,7 @@ YEAR_PATTERN = r'\d{4}(?:, \d{4})?'
 IDENTITY_PREFIX = 'This code is'
 IDENTITY_OWNER = 'Crystallographic Data Centre (CCDC)'
 LICENCE_REGION_LABEL = re.compile(r'licen[cs]e|copyright|header', re.IGNORECASE)
+DECODE_ERROR = 'file encoding could not be decoded'
 
 # Region open/close directives per file extension. To support another
 # language, add its extension with (open pattern, close pattern); the open
@@ -63,25 +66,29 @@ REGION_SYNTAX = {
 }
 
 # Non-comment lines that may legitimately appear before the licence header.
+TRAILING_SLASH_COMMENT = r'\s*(?://.*|/\*.*?\*/\s*)?$'
+USE_STRICT = re.compile(r'''^\s*(['"])use strict\1;?''' + TRAILING_SLASH_COMMENT)
+PRAGMA_ONCE = re.compile(r'^\s*#\s*pragma\s+once\b')
+YAML_DOCUMENT_START = re.compile(r'^---\s*$')
 PREAMBLE_DIRECTIVES = {
     '.cs': (
-        re.compile(r'^\s*(?:global\s+)?using\s+(?:static\s+)?[\w.]+(?:\s*=\s*[\w.<>, ]+)?\s*;\s*$'),
+        re.compile(
+            r'^\s*(?:global\s+)?using\s+(?:static\s+)?[\w.]+(?:\s*=\s*[\w.<>, ]+)?\s*;'
+            + TRAILING_SLASH_COMMENT
+        ),
         re.compile(r'^\s*#\s*(?:nullable|pragma|define|undef)\b'),
     ),
-    '.js': (re.compile(r'''^\s*(['"])use strict\1;?\s*$'''),),
-    '.ts': (re.compile(r'''^\s*(['"])use strict\1;?\s*$'''),),
-    '.cpp': (re.compile(r'^\s*#\s*pragma\s+once\b'),),
-    '.cxx': (re.compile(r'^\s*#\s*pragma\s+once\b'),),
-    '.cc': (re.compile(r'^\s*#\s*pragma\s+once\b'),),
-    '.h': (re.compile(r'^\s*#\s*pragma\s+once\b'),),
-    '.hpp': (re.compile(r'^\s*#\s*pragma\s+once\b'),),
-    '.yaml': (re.compile(r'^---\s*$'),),
-    '.yml': (re.compile(r'^---\s*$'),),
+    **{suffix: (USE_STRICT,) for suffix in ('.js', '.ts')},
+    **{suffix: (PRAGMA_ONCE,) for suffix in ('.cpp', '.cxx', '.cc', '.h', '.hpp')},
+    **{suffix: (YAML_DOCUMENT_START,) for suffix in ('.yaml', '.yml')},
 }
 
-# Damaged header recovery tolerances.
+# Damaged header recovery tolerances. Jumps further than ALIGNMENT_LOOKAHEAD
+# template lines are only accepted when confirmed by a run of consecutive
+# template lines, so isolated source comments are never absorbed.
 ALIGNMENT_LOOKAHEAD = 3
 MAX_UNMATCHED_LINES = 2
+MIN_CONFIRMED_RUN = 3
 
 
 @dataclass
@@ -98,8 +105,20 @@ class _HeaderSpan:
     valid: bool
 
 
+def _path(filename):
+    return PurePosixPath(str(filename).replace('\\', '/'))
+
+
+def _suffix(filename):
+    return _path(filename).suffix.lower()
+
+
+def _is_python(filename):
+    return _suffix(filename) == '.py'
+
+
 def _comment_style(filename):
-    path = PurePosixPath(str(filename).replace('\\', '/'))
+    path = _path(filename)
     lower_name = path.name.lower()
     if any(part.lower() in IGNORED_DIRECTORIES for part in path.parts):
         return None
@@ -112,10 +131,7 @@ def _comment_style(filename):
     return None
 
 
-def _suffix(filename):
-    return PurePosixPath(str(filename).replace('\\', '/')).suffix.lower()
-
-
+@lru_cache(maxsize=None)
 def _read_template(style):
     return (TEMPLATE_DIRECTORY / f'ccdc_{style}.tmpl').read_text(encoding='utf-8')
 
@@ -130,7 +146,7 @@ def _decode_content(filename, data):
         return data, None
     if data.startswith(codecs.BOM_UTF8):
         encoding = 'utf-8-sig'
-    elif str(filename).lower().endswith('.py'):
+    elif _is_python(filename):
         encoding, _ = tokenize.detect_encoding(BytesIO(data).readline)
     else:
         encoding = 'utf-8'
@@ -149,13 +165,15 @@ def _comment_text(line, marker):
     return _normalise(stripped[len(marker):])
 
 
+@lru_cache(maxsize=None)
 def _template_lines(style):
     '''Template body lines with comment markers removed and marker-only lines dropped.'''
     marker = COMMENT_MARKERS[style]
     texts = (_comment_text(line, marker) for line in _read_template(style).splitlines())
-    return [text for text in texts if text]
+    return tuple(text for text in texts if text)
 
 
+@lru_cache(maxsize=None)
 def _header_pattern(style):
     '''Regex matching the normalised header text with any valid year.'''
     escaped = re.escape(' '.join(_template_lines(style)))
@@ -199,6 +217,10 @@ def _is_marker_only(line):
     return line.kind == 'comment' and not line.text
 
 
+def _is_padding(line):
+    return line.kind == 'blank' or _is_marker_only(line)
+
+
 def _comment_runs(classified):
     run = []
     for index, line in enumerate(classified):
@@ -231,16 +253,28 @@ def _find_valid_headers(classified, pattern):
             if match.start() not in starts or match.end() not in ends:
                 continue
             start, end = starts[match.start()], ends[match.end()] + 1
-            if start > 0 and _is_marker_only(classified[start - 1]) and not _claimed(spans, start - 1):
-                start -= 1
-            if end < len(classified) and _is_marker_only(classified[end]):
-                end += 1
-            spans.append(_HeaderSpan(start, end, valid=True))
+            spans.append(_HeaderSpan(
+                _include_leading_marker(classified, start, spans),
+                _include_trailing_marker(classified, end, spans),
+                valid=True,
+            ))
     return spans
 
 
 def _claimed(spans, index):
     return any(span.start <= index < span.end for span in spans)
+
+
+def _include_leading_marker(classified, start, claimed):
+    if start > 0 and _is_marker_only(classified[start - 1]) and not _claimed(claimed, start - 1):
+        return start - 1
+    return start
+
+
+def _include_trailing_marker(classified, end, claimed):
+    while end < len(classified) and _is_marker_only(classified[end]) and not _claimed(claimed, end):
+        end += 1
+    return end
 
 
 def _similar(actual, expected):
@@ -261,21 +295,61 @@ def _align(text, expected, pointer):
     return None
 
 
+def _template_run(classified, index, expected, template_index, claimed):
+    '''Follow consecutive template lines from `index`, which matches `expected[template_index]`.
+
+    Returns (matched line count, end line index, reached final template line, no lines skipped).
+    '''
+    count, end, pointer, strict = 0, index, template_index, True
+    while index < len(classified) and not _claimed(claimed, index):
+        line = classified[index]
+        if _is_padding(line):
+            index += 1
+            continue
+        if line.kind != 'comment':
+            break
+        aligned = pointer if count == 0 else _align(line.text, expected, pointer)
+        if aligned is None:
+            break
+        strict = strict and aligned == pointer
+        count, end, pointer = count + 1, index + 1, aligned + 1
+        index += 1
+        if pointer >= len(expected):
+            break
+    return count, end, pointer >= len(expected), strict
+
+
+def _confirmed_template_run(classified, index, expected, first_template_index, claimed):
+    '''Find a template run starting at line `index` that is long enough to trust.
+
+    Returns (template index of the first line, end line index) or None.
+    '''
+    text = classified[index].text
+    for template_index in range(first_template_index, len(expected)):
+        if not _similar(text, expected[template_index]):
+            continue
+        count, end, complete, strict = _template_run(classified, index, expected, template_index, claimed)
+        if count >= MIN_CONFIRMED_RUN or (complete and strict and count >= 2):
+            return template_index, end
+    return None
+
+
 def _damaged_span(classified, anchor, expected, claimed):
     '''Extend a damaged header from its identity line while lines still resemble the template.'''
-    start = anchor
-    if anchor > 0 and _is_marker_only(classified[anchor - 1]) and not _claimed(claimed, anchor - 1):
-        start -= 1
+    start = _include_leading_marker(classified, anchor, claimed)
     pointer, end, unmatched = 1, anchor + 1, 0
     index = anchor + 1
     while index < len(classified) and pointer < len(expected) and not _claimed(claimed, index):
         line = classified[index]
-        if line.kind == 'blank' or _is_marker_only(line):
+        if _is_padding(line):
             index += 1
             continue
         if line.kind != 'comment':
             break
         aligned = _align(line.text, expected, pointer)
+        if aligned is None:
+            jump = _confirmed_template_run(classified, index, expected, pointer, claimed)
+            aligned = jump[0] if jump is not None else None
         if aligned is None:
             unmatched += 1
             if unmatched > MAX_UNMATCHED_LINES:
@@ -283,9 +357,21 @@ def _damaged_span(classified, anchor, expected, claimed):
         else:
             pointer, end, unmatched = aligned + 1, index + 1, 0
         index += 1
-    if end < len(classified) and _is_marker_only(classified[end]) and not _claimed(claimed, end):
-        end += 1
-    return _HeaderSpan(start, end, valid=False)
+    return _HeaderSpan(start, _include_trailing_marker(classified, end, claimed), valid=False)
+
+
+def _absorb_trailing_fragment(classified, span, expected, claimed):
+    '''Mark a header invalid and extend it over leftover template lines directly after it.'''
+    index = span.end
+    while index < len(classified) and _is_padding(classified[index]):
+        index += 1
+    if index >= len(classified) or classified[index].kind != 'comment' or _claimed(claimed, index):
+        return
+    others = [other for other in claimed if other is not span]
+    fragment = _confirmed_template_run(classified, index, expected, 1, others)
+    if fragment is not None:
+        span.end = _include_trailing_marker(classified, fragment[1], others)
+        span.valid = False
 
 
 def _find_headers(filename, style, lines):
@@ -306,41 +392,39 @@ def _find_headers(filename, style, lines):
             and IDENTITY_OWNER in line.text
         ):
             spans.append(_damaged_span(classified, index, expected, spans))
+    for span in spans:
+        _absorb_trailing_fragment(classified, span, expected, spans)
     return sorted(spans, key=lambda span: span.start), classified
+
+
+def _encoding_declaration_index(text):
+    '''Index of the PEP 263 declaration Python would honour (line 1, or line 2 after a comment).'''
+    for index, line in enumerate(text.splitlines()[:2]):
+        line = line.lstrip('\ufeff')
+        if PYTHON_ENCODING_PATTERN.match(line):
+            return index
+        if not PYTHON_BLANK_OR_COMMENT_PATTERN.match(line):
+            break
+    return None
 
 
 def _header_offset(filename, text):
     '''Character offset where a missing header is inserted at the top of the file.'''
     lines = text.splitlines(keepends=True)
-    has_shebang = bool(lines and lines[0].startswith('#!'))
-    if not str(filename).lower().endswith('.py'):
-        return len(lines[0]) if has_shebang else 0
-
-    candidate_indexes = [1] if has_shebang else [0]
-    if (
-        not has_shebang
-        and len(lines) > 1
-        and (
-            lines[0].strip() == ''
-            or lines[0].lstrip().startswith('#')
-        )
-    ):
-        candidate_indexes.append(1)
-
-    for index in candidate_indexes:
-        if index < len(lines) and PYTHON_ENCODING_PATTERN.match(lines[index]):
-            return sum(len(line) for line in lines[:index + 1])
-    return len(lines[0]) if has_shebang else 0
+    protected = 1 if lines and lines[0].startswith('#!') else 0
+    if _is_python(filename):
+        declaration = _encoding_declaration_index(text)
+        if declaration is not None:
+            protected = max(protected, declaration + 1)
+    return sum(len(line) for line in lines[:protected])
 
 
 def _insert_header(filename, text, lines, classified, expected, newline):
+    offset = _header_offset(filename, text)
     for index, line in enumerate(classified):
         if line.kind == 'region_open' and LICENCE_REGION_LABEL.search(line.label):
-            prefix = ''.join(lines[:index + 1])
-            if not prefix.endswith(('\n', '\r')):
-                prefix += newline
-            return prefix + expected + ''.join(lines[index + 1:])
-    offset = _header_offset(filename, text)
+            offset = max(offset, sum(len(raw) for raw in lines[:index + 1]))
+            break
     prefix = text[:offset]
     if prefix and not prefix.endswith(('\n', '\r')):
         prefix += newline
@@ -351,6 +435,31 @@ def _newline(text):
     return '\r\n' if '\r\n' in text else '\n'
 
 
+def _keep_encoding_declaration(filename, original, fixed, newline):
+    '''Move an encoding declaration displaced by header changes back into the first two lines.'''
+    if not _is_python(filename):
+        return fixed
+    index = _encoding_declaration_index(original)
+    if index is None or _encoding_declaration_index(fixed) is not None:
+        return fixed
+    declaration = original.lstrip('\ufeff').splitlines(keepends=True)[index]
+    lines = fixed.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.strip() == declaration.strip():
+            del lines[index]
+            break
+    if not declaration.endswith(('\n', '\r')):
+        declaration += newline
+    position = 1 if lines and lines[0].startswith('#!') else 0
+    lines.insert(position, declaration)
+    return ''.join(lines)
+
+
+def _finish_fix(filename, original, fixed, encoding, newline):
+    fixed = _keep_encoding_declaration(filename, original, fixed, newline)
+    return fixed.encode(encoding) if encoding else fixed
+
+
 def check_content(filename, data, year=None):
     '''Return an error message when a supported file lacks exactly one compliant header.'''
     style = _comment_style(filename)
@@ -359,7 +468,7 @@ def check_content(filename, data, year=None):
     try:
         text, _ = _decode_content(filename, data)
     except (LookupError, SyntaxError, UnicodeDecodeError):
-        return 'file encoding could not be decoded'
+        return DECODE_ERROR
 
     spans, _ = _find_headers(filename, style, text.splitlines(keepends=True))
     if len(spans) > 1:
@@ -385,7 +494,7 @@ def fix_content(filename, data, year=None):
     expected = _render_header(style, newline, year)
     if not spans:
         fixed = _insert_header(filename, text, lines, classified, expected, newline)
-        return fixed.encode(encoding) if encoding else fixed
+        return _finish_fix(filename, text, fixed, encoding, newline)
 
     keep = next((span for span in spans if span.valid), spans[0])
     output = []
@@ -401,8 +510,7 @@ def fix_content(filename, data, year=None):
         elif index < len(classified) and classified[index].kind == 'blank':
             index += 1
     output.extend(lines[index:])
-    fixed = ''.join(output)
-    return fixed.encode(encoding) if encoding else fixed
+    return _finish_fix(filename, text, ''.join(output), encoding, newline)
 
 
 def process_files(files, fix=False, year=None):
@@ -415,7 +523,7 @@ def process_files(files, fix=False, year=None):
         issue = check_content(filename, data, year)
         if issue is None:
             continue
-        if fix:
+        if fix and issue != DECODE_ERROR:
             fixed = fix_content(filename, data, year)
             if isinstance(fixed, str):
                 fixed = fixed.encode('utf-8')

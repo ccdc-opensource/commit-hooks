@@ -462,3 +462,124 @@ def test_repeated_fix_never_adds_headers():
             fixed = licence_headers.fix_content('Foo.cs', fixed, 2026)
         assert fixed.count('This code is Copyright') == 1
         assert licence_headers.check_content('Foo.cs', fixed, 2026) is None
+
+
+def _drop_template_lines(header, start, count):
+    lines = header.splitlines(keepends=True)
+    return ''.join(lines[:start] + lines[start + count:])
+
+
+def test_large_missing_section_after_address_line_is_fully_replaced():
+    header = licence_headers._render_header('hash', year=2026)
+    source = '# keep this source comment\nprint("ok")\n'
+    for count in range(3, 7):
+        broken = _drop_template_lines(header, 3, count)
+        content = broken + source
+        assert licence_headers.check_content('example.py', content, 2026) is not None
+        fixed = _assert_stable('example.py', content)
+        assert fixed == header + source
+
+
+def test_large_missing_section_anywhere_in_header_is_fully_replaced():
+    header = licence_headers._render_header('slash', year=2026)
+    body_lines = len(header.splitlines()) - 1
+    for start in range(2, body_lines - 3):
+        broken = _drop_template_lines(header, start, 4)
+        content = '#region Licence\n' + broken + '#endregion\n// keep me\n' + CS_BODY
+        fixed = _assert_stable('Foo.cs', content)
+        assert fixed == '#region Licence\n' + header + '#endregion\n// keep me\n' + CS_BODY, start
+
+
+def test_section_recovery_preserves_source_comments_resembling_header_lines():
+    header = licence_headers._render_header('hash', year=2026)
+    truncated = ''.join(header.splitlines(keepends=True)[:3])
+    for source in [
+        '# notice.\nprint("ok")\n',
+        '# notice.\n# keep this source comment\nprint("ok")\n',
+        '# valid licence agreement as referred to above must contain this copyright\nprint("ok")\n',
+        '# notice.\nprint("ok")\n# exclusion or limitation is prohibited, void or unenforceable under governing\n# law.\n',
+    ]:
+        fixed = _assert_stable('example.py', truncated + source)
+        assert fixed == header + source
+
+
+def test_orphaned_licence_tail_after_header_fails_and_is_removed():
+    header = licence_headers._render_header('hash', year=2026)
+    orphan = ''.join(header.splitlines(keepends=True)[7:])
+    source = '# keep this source comment\nprint("ok")\n'
+    content = header + orphan + source
+    assert licence_headers.check_content('example.py', content, 2026) is not None
+    fixed = _assert_stable('example.py', content)
+    assert fixed == header + source
+
+
+def test_insertion_into_python_licence_region_keeps_encoding_declaration_in_place():
+    header = licence_headers._render_header('hash', year=2026)
+    for prefix in [
+        '#region Licence\n# coding: latin-1\n',
+        '# coding: latin-1\n#region Licence\n',
+        '#region Licence\n# coding: latin-1',
+    ]:
+        body = '\n#endregion\nname = "café"\n' if not prefix.endswith('\n') else '#endregion\nname = "café"\n'
+        source = (prefix + body).encode('latin-1')
+        fixed = licence_headers.fix_content('script.py', source, 2026)
+        assert isinstance(fixed, bytes)
+        text = fixed.decode('latin-1')
+        assert text.startswith(prefix.rstrip('\n') + '\n' + header)
+        assert licence_headers.check_content('script.py', fixed, 2026) is None
+        assert licence_headers.fix_content('script.py', fixed, 2026) == fixed
+        compile(fixed, 'script.py', 'exec')
+
+
+def test_header_replacement_keeps_python_encoding_declaration_effective():
+    header = licence_headers._render_header('hash', year=2026)
+    legacy = '# Copyright The Cambridge Crystallographic Data Centre (CCDC) 2021\n'
+    identity = '# This code is Copyright (C) 2020 The Cambridge Crystallographic Data Centre (CCDC)\n'
+    address = '# of 12 Union Road, Cambridge CB2 1EZ, UK and a proprietary work of CCDC. This\n'
+    declaration = '# coding: latin-1\n'
+    body = 'name = "café"\n'
+    cases = [
+        (legacy + declaration + body, declaration + header + body),
+        (legacy + declaration + '\n' + body, declaration + header + '\n' + body),
+        (identity + declaration + address + body, declaration + header + body),
+        ('#!/usr/bin/env python3\n' + declaration + legacy + body,
+         '#!/usr/bin/env python3\n' + declaration + header + body),
+        (legacy + declaration + header + body, declaration + header + body),
+        ((legacy + declaration + body).replace('\n', '\r\n'), (declaration + header + body).replace('\n', '\r\n')),
+    ]
+    for source, expected in cases:
+        fixed = licence_headers.fix_content('script.py', source.encode('latin-1'), 2026)
+        assert fixed.decode('latin-1') == expected
+        assert licence_headers.check_content('script.py', fixed, 2026) is None
+        assert licence_headers.fix_content('script.py', fixed, 2026) == fixed
+        compile(fixed, 'script.py', 'exec')
+
+
+def test_directives_with_trailing_comments_are_preamble():
+    header = licence_headers._render_header('slash', year=2026)
+    region = '#region Licence\n' + header + '#endregion\n'
+    cases = [
+        ('Foo.cs', 'using System; // imports\n' + region + CS_BODY),
+        ('Foo.cs', 'global using static System.Math;   // maths\nusing IO = System.IO; /* alias */\n' + region + CS_BODY),
+        ('app.js', "'use strict'; // strict mode\n" + header + 'const x = 1;\n'),
+        ('app.ts', '"use strict" /* strict */\n' + header + 'const x = 1;\n'),
+    ]
+    for filename, content in cases:
+        assert licence_headers.check_content(filename, content, 2026) is None
+        assert licence_headers.fix_content(filename, content, 2026) == content
+
+
+def test_using_with_trailing_code_is_not_preamble():
+    header = licence_headers._render_header('slash', year=2026)
+    content = 'using System; class A { }\n' + header
+    assert licence_headers.check_content('Foo.cs', content, 2026) is not None
+    content = 'using System; /* note */ class A { }\n' + header
+    assert licence_headers.check_content('Foo.cs', content, 2026) is not None
+
+
+def test_process_files_reports_undecodable_file_in_fix_mode(tmp_path, capsys):
+    target = tmp_path / 'broken.py'
+    target.write_bytes(b'name = "\xe9"\n')
+    assert licence_headers.process_files([str(target)], fix=True, year=2026) == 1
+    assert 'file encoding could not be decoded' in capsys.readouterr().out
+    assert target.read_bytes() == b'name = "\xe9"\n'
