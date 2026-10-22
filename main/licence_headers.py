@@ -417,6 +417,8 @@ def process_files(files, fix=False, year=None):
             continue
         if fix:
             fixed = fix_content(filename, data, year)
+            if isinstance(fixed, str):
+                fixed = fixed.encode('utf-8')
             if fixed != data:
                 path.write_bytes(fixed)
                 print(f'Updated CCDC licence header: {filename}')
