@@ -177,6 +177,20 @@ When licence header validation/formatting is enabled, files are filtered using t
   * Suffixes: `.designer.cs`, `.g.cs`, `.min.js`, `.lock`
   * Any file containing `.generated.` in its name
 
+### Header Detection
+
+* The header may appear anywhere in the file's leading preamble (blank lines, comments,
+  region directives, and directives such as C# `using`/`#nullable`/`#pragma`, `#pragma once`
+  or `'use strict'`) before the first line of code.
+* Matching ignores comment markers, whitespace, line wrapping and marker-only (`//` or `#`)
+  padding lines, and accepts any copyright year.
+* Headers wrapped in regions are supported for C# (`#region`/`#endregion`) and Python
+  (`#region`/`# region`). Further languages can be added to `REGION_SYNTAX` in
+  `main/licence_headers.py`.
+* In fix mode, damaged headers are repaired in place, duplicate headers are removed, and a
+  missing header is inserted inside a region labelled `Licence`/`License`/`Copyright`/`Header`
+  if one exists, otherwise at the top of the file (after any shebang or encoding line).
+
 ## Recommended settings
 ### To ensure the line endings are correctly converted:
 1. On Windows: `git config --global core.autocrlf true`
